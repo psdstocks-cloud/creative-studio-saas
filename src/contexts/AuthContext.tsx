@@ -12,6 +12,7 @@ interface AuthContextType {
   signOut: () => void;
   deductPoints: (amount: number) => Promise<void>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
+  resendConfirmationEmail: (email: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -128,8 +129,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return Promise.resolve();
   }, []);
 
+  const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+    if (error) {
+      console.error("Resend confirmation error:", error.message);
+      throw new Error("Could not resend confirmation email. Please try again later.");
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, sendPasswordResetEmail }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, sendPasswordResetEmail, resendConfirmationEmail }}>
       {children}
     </AuthContext.Provider>
   );

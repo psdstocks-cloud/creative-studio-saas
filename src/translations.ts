@@ -31,6 +31,10 @@ export const translations = {
     alreadyHaveAccount: "Already have an account?",
     confirmationTitle: "Check Your Inbox",
     confirmationMessage: "We've sent a confirmation link to {email}. Please click the link in the email to complete your registration.",
+    emailNotConfirmed: "Your email is not confirmed. Please check your inbox for a confirmation link.",
+    resendConfirmation: "Resend confirmation",
+    resending: "Resending...",
+    confirmationResent: "A new confirmation link has been sent.",
     // Home Page
     homeTitle: "Creative Studio",
     homeSubtitle: "Your all-in-one platform for stock media and AI-powered image generation.",
@@ -131,6 +135,10 @@ export const translations = {
     alreadyHaveAccount: "لديك حساب بالفعل؟",
     confirmationTitle: "تحقق من بريدك الوارد",
     confirmationMessage: "لقد أرسلنا رابط تأكيد إلى {email}. يرجى النقر على الرابط في البريد الإلكتروني لإكمال تسجيلك.",
+    emailNotConfirmed: "لم يتم تأكيد بريدك الإلكتروني. يرجى التحقق من بريدك الوارد للحصول على رابط التأكيد.",
+    resendConfirmation: "إعادة إرسال التأكيد",
+    resending: "جاري الإرسال...",
+    confirmationResent: "تم إرسال رابط تأكيد جديد.",
     // Home Page
     homeTitle: "الاستوديو الإبداعي",
     homeSubtitle: "منصتك المتكاملة للوسائط المخزنة وتوليد الصور بالذكاء الاصطناعي.",

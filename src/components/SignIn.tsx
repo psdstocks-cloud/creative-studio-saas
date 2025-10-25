@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -15,20 +13,40 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const { signIn } = useAuth();
+    const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+    const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+    const { signIn, resendConfirmationEmail } = useAuth();
     const { t } = useLanguage();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
+        setEmailNotConfirmed(false);
+        setResendStatus('idle');
         setIsLoading(true);
         try {
             await signIn(email, password);
             // On successful sign-in, the App component will handle the redirect.
         } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred.');
+            if (err.message && err.message.toLowerCase().includes('email not confirmed')) {
+                setEmailNotConfirmed(true);
+            } else {
+                setError(err.message || 'An unexpected error occurred.');
+            }
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleResend = async () => {
+        setResendStatus('sending');
+        setError(null);
+        try {
+            await resendConfirmationEmail(email);
+            setResendStatus('sent');
+        } catch(err: any) {
+            setError(err.message);
+            setResendStatus('idle');
         }
     };
 
@@ -39,6 +57,23 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
             {error && (
                 <div className="bg-red-100 dark:bg-red-900/50 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-6 rounded-md" role="alert">
                     <p>{error}</p>
+                </div>
+            )}
+
+            {emailNotConfirmed && (
+                <div className="bg-yellow-100 dark:bg-yellow-900/50 border-l-4 border-yellow-500 text-yellow-700 dark:text-yellow-300 p-4 mb-6 rounded-md" role="alert">
+                    <p className="font-semibold">{t('emailNotConfirmed')}</p>
+                    {resendStatus === 'sent' ? (
+                        <p className="mt-2 font-medium text-green-700 dark:text-green-300">{t('confirmationResent')}</p>
+                    ) : (
+                        <button 
+                            onClick={handleResend}
+                            disabled={resendStatus === 'sending'}
+                            className="mt-2 text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:cursor-wait"
+                        >
+                            {resendStatus === 'sending' ? t('resending') : t('resendConfirmation')}
+                        </button>
+                    )}
                 </div>
             )}
             
