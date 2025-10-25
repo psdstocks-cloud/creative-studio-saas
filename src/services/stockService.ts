@@ -22,7 +22,7 @@ const apiFetch = async (endpoint: string) => {
     try {
       // Attempt to get a more specific error message from the API's response body.
       const errorData = await response.json();
-      errorMessage = errorData.message || errorMessage;
+      errorMessage = errorData.message || errorData.data || errorMessage;
     } catch (e) {
       // Ignore if the body isn't JSON or is empty.
     }
@@ -38,7 +38,6 @@ const apiFetch = async (endpoint: string) => {
  */
 const parsers = [
     // Shutterstock (ordered from most to least specific)
-    // FIX: Changed greedy `*` to optional `?` to prevent it from consuming the content type path segment.
     { site: 'vshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?video\/clip-([0-9]+)/i },
     { site: 'mshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?music\/track-([0-9]+)/i },
     { site: 'shutterstock', regex: /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/[a-zA-Z0-9-]+-([0-9]+)/i },
@@ -124,17 +123,24 @@ const parseStockUrl = (url: string): { site: string; id: string } => {
  */
 export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   const { site, id } = parseStockUrl(url);
-  const responseData = await apiFetch(`/stockinfo/${site}/${id}`);
+  // Per API docs, pass the original, encoded URL as a query parameter.
+  const endpoint = `/stockinfo/${site}/${id}?url=${encodeURIComponent(url)}`;
+  const responseData = await apiFetch(endpoint);
+  
+  // As per API docs, check for an explicit error response even with a 200 OK status.
+  if (responseData.success === false || responseData.error === true) {
+      throw new Error(responseData.data || responseData.message || 'The API returned an unspecified error.');
+  }
 
   // Handle cases where the actual data is nested inside a 'data' property.
   const data = responseData.data || responseData;
 
   const costValue = data.cost ?? data.price;
-  const previewUrl = data.preview || data.thumb || data.thumb_lg;
+  const previewUrl = data.image || data.preview || data.thumb || data.thumb_lg;
 
   // Validate the response to prevent showing an empty modal.
-  if (!previewUrl || !data.id) {
-    throw new Error(responseData.message || 'Could not retrieve file details. The URL might be incorrect or the file is unavailable.');
+  if (!previewUrl || !data.id || !data.source) {
+    throw new Error('Could not retrieve valid file details. The API response was incomplete.');
   }
   
   // Robustly parse the cost, which might be a string or number.
@@ -142,7 +148,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
 
   return {
     id: data.id,
-    site: data.site,
+    site: data.source, // Use 'source' from response as the canonical site name
     preview: previewUrl,
     cost: !isNaN(parsedCost) ? parsedCost : null,
   };

@@ -42,6 +42,11 @@ const StockDownloader = () => {
     const [error, setError] = useState<string | null>(null);
     const isModalOpen = state !== 'idle' && state !== 'fetching';
 
+    const currentUrlCount = useMemo(() => {
+        return batchUrls.split('\n').map(u => u.trim()).filter(Boolean).length;
+    }, [batchUrls]);
+    const hasUrlCountError = currentUrlCount > 5;
+
     // Reset states when switching modes
     useEffect(() => {
         setUrl('');
@@ -132,31 +137,34 @@ const StockDownloader = () => {
         e.preventDefault();
         setError(null);
         setBatchOrderSuccessMessage(null);
-        const urls = batchUrls.split('\n').map(u => u.trim()).filter(Boolean);
+        const rawUrls = batchUrls.split('\n').map(u => u.trim()).filter(Boolean);
         
-        if (urls.length === 0) return;
-        if (urls.length > 5) {
+        if (rawUrls.length === 0) return;
+        if (rawUrls.length > 5) {
             setError(t('batchLimitError'));
             return;
         }
+        
+        // Remove duplicates before fetching
+        const uniqueUrls = [...new Set(rawUrls)];
 
         setIsFetchingBatch(true);
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
 
         const results = await Promise.allSettled(
-            urls.map(u => getStockFileInfo(u))
+            uniqueUrls.map(u => getStockFileInfo(u))
         );
 
         const fileInfos: BatchFileInfo[] = results.map((result, index) => {
             if (result.status === 'fulfilled') {
-                return { ...result.value, status: 'success', sourceUrl: urls[index] };
+                return { ...result.value, status: 'success', sourceUrl: uniqueUrls[index] };
             } else {
                 return {
                     id: `error-${index}-${Date.now()}`,
                     status: 'error',
                     error: (result.reason as Error).message,
-                    sourceUrl: urls[index],
+                    sourceUrl: uniqueUrls[index],
                 };
             }
         });
@@ -274,7 +282,7 @@ const StockDownloader = () => {
         <div className="max-w-4xl mx-auto">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
                 <form onSubmit={handleGetBatchInfo}>
-                    <label htmlFor="batch-urls" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('batchUrlLabel')}</label>
+                    <label htmlFor="batch-urls" className={`block text-sm font-medium mb-2 ${hasUrlCountError ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>{t('batchUrlLabel')}</label>
                     <textarea
                         id="batch-urls"
                         value={batchUrls}
@@ -284,7 +292,10 @@ const StockDownloader = () => {
                         className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-y"
                         disabled={isFetchingBatch}
                     />
-                     <button type="submit" disabled={isFetchingBatch || !batchUrls} className="w-full mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+                    <div className="text-right text-sm text-gray-500 mt-1">
+                        <span className={hasUrlCountError ? 'text-red-500 font-semibold' : ''}>{currentUrlCount}</span> / 5
+                    </div>
+                     <button type="submit" disabled={isFetchingBatch || !batchUrls || hasUrlCountError} className="w-full mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
                         {isFetchingBatch ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : null}
                         {isFetchingBatch ? t('fetching') : t('getFileInfo')}
                     </button>
@@ -321,10 +332,10 @@ const StockDownloader = () => {
                                         </p>
                                     </>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-center">
+                                    <div className="flex flex-col items-center justify-center h-full text-center p-2">
                                         <ExclamationTriangleIcon className="w-10 h-10 text-red-400 mb-2"/>
                                         <p className="text-sm font-semibold text-red-300">{t('error')}</p>
-                                        <p className="text-xs text-red-400 break-all">{info.error}</p>
+                                        <p className="text-xs text-red-400 break-words">{info.error}</p>
                                     </div>
                                 )}
                             </div>
