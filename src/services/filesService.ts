@@ -10,7 +10,7 @@ import type { Order, StockFileInfo } from '../types';
  */
 export const createOrder = async (userId: string, taskId: string, fileInfo: StockFileInfo): Promise<Order> => {
   const { data, error } = await supabase
-    .from('stock_orders')
+    .from('stock_order')
     .insert({
       user_id: userId,
       task_id: taskId,
@@ -35,7 +35,7 @@ export const createOrder = async (userId: string, taskId: string, fileInfo: Stoc
  */
 export const getOrders = async (userId: string): Promise<Order[]> => {
     const { data, error } = await supabase
-        .from('stock_orders')
+        .from('stock_order')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
@@ -55,7 +55,7 @@ export const getOrders = async (userId: string): Promise<Order[]> => {
  */
 export const updateOrder = async (taskId: string, updates: Partial<Order>): Promise<void> => {
     const { error } = await supabase
-        .from('stock_orders')
+        .from('stock_order')
         .update(updates)
         .eq('task_id', taskId);
 
