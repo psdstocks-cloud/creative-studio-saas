@@ -3,6 +3,7 @@ export const translations = {
     // General
     creativeSaaS: "CreativeSaaS",
     points: "Points",
+    error: "Error",
     // Sidebar
     home: "Home",
     stockFullSize: "Stock Full-Size",
@@ -72,6 +73,16 @@ export const translations = {
     supportedWebsitesTitle: "Supported Websites & Costs",
     insufficientPoints: "Insufficient points. Please add funds.",
     fileFetchError: "Could not retrieve file details. The URL might be incorrect or the file is unavailable.",
+    singleUrl: "Single URL",
+    batchMode: "Batch Mode",
+    batchUrlLabel: "Stock Media URLs (1 per line, max 5)",
+    batchUrlPlaceholder: "e.g., https://www.shutterstock.com/image-photo/...\ne.g., https://www.adobe.com/stock/image/...",
+    batchLimitError: "You can only process up to 5 links at a time.",
+    batchSelectError: "Please select at least one file to order.",
+    batchSummaryTitle: "Order Summary",
+    batchTotalCost: "Total for {count} items:",
+    batchOrderSuccess: "Successfully placed {count} orders. You can track them in your files manager.",
+    batchOrderError: "{count} orders failed. Please try again.",
     // AI Generator
     aiGeneratorTitle: "AI Image Generator",
     promptPlaceholder: "A majestic lion wearing a crown, cinematic lighting, hyperrealistic...",
@@ -110,6 +121,7 @@ export const translations = {
     // General
     creativeSaaS: "كرييتف ساس",
     points: "نقاط",
+    error: "خطأ",
     // Sidebar
     home: "الرئيسية",
     stockFullSize: "صور ستوك بالحجم الكامل",
@@ -179,6 +191,16 @@ export const translations = {
     supportedWebsitesTitle: "المواقع المدعومة والتكاليف",
     insufficientPoints: "نقاط غير كافية. يرجى إضافة رصيد.",
     fileFetchError: "تعذر جلب تفاصيل الملف. قد يكون الرابط غير صحيح أو الملف غير متوفر.",
+    singleUrl: "رابط واحد",
+    batchMode: "وضع الدُفعات",
+    batchUrlLabel: "روابط صور الستوك (رابط واحد في كل سطر، 5 كحد أقصى)",
+    batchUrlPlaceholder: "مثال: https://www.shutterstock.com/image-photo/...\nمثال: https://www.adobe.com/stock/image/...",
+    batchLimitError: "يمكنك معالجة 5 روابط كحد أقصى في المرة الواحدة.",
+    batchSelectError: "يرجى تحديد ملف واحد على الأقل للطلب.",
+    batchSummaryTitle: "ملخص الطلب",
+    batchTotalCost: "الإجمالي لـ {count} عناصر:",
+    batchOrderSuccess: "تم تقديم {count} طلبات بنجاح. يمكنك تتبعها في مدير الملفات.",
+    batchOrderError: "فشل {count} من الطلبات. يرجى المحاولة مرة أخرى.",
     // AI Generator
     aiGeneratorTitle: "مولد الصور بالذكاء الاصطناعي",
     promptPlaceholder: "أسد مهيب يرتدي تاجًا، إضاءة سينمائية، فائق الواقعية...",
