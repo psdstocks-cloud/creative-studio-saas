@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -219,7 +217,6 @@ const StockDownloader = () => {
             )}
             
             <div className="mt-12">
-                <h2 className="text-2xl font-semibold text-center mb-6">{t('supportedWebsitesTitle')}</h2>
                 <SupportedSites />
             </div>
         </div>
