@@ -2,43 +2,145 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getStockFileInfo, orderStockFile, checkOrderStatus, generateDownloadLink } from '../services/stockService';
-import type { StockFileInfo, StockOrder } from '../types';
-import { LinkIcon, ArrowPathIcon, CheckCircleIcon, XMarkIcon, ExclamationTriangleIcon } from './icons/Icons';
+import { createOrder, updateOrder } from '../services/filesService';
+import type { StockFileInfo, StockOrder, Order } from '../types';
+import { LinkIcon, ArrowPathIcon, CheckCircleIcon, XMarkIcon, ExclamationTriangleIcon, ArrowDownTrayIcon } from './icons/Icons';
 import SupportedSites from './SupportedSites';
 
 type DownloadState = 'idle' | 'fetching' | 'info' | 'ordering' | 'processing' | 'ready' | 'error';
 type Mode = 'single' | 'batch';
 
-interface BatchFileInfo extends Partial<StockFileInfo> {
+interface BatchFileInfo extends StockFileInfo {
     id: string;
     status: 'success' | 'error';
     error?: string;
     sourceUrl: string;
 }
 
+const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void) => {
+    const { t } = useLanguage();
+    useEffect(() => {
+        const processingOrders = orders.filter(o => o.status === 'processing');
+        if (processingOrders.length === 0) return;
+
+        const interval = setInterval(async () => {
+            for (const order of processingOrders) {
+                try {
+                    const statusResult = await checkOrderStatus(order.task_id);
+                    if (statusResult.status === 'ready') {
+                       await updateOrder(order.task_id, { status: 'ready' });
+                       onUpdate(order.task_id, 'ready');
+                    } else if (statusResult.status === 'failed') {
+                       await updateOrder(order.task_id, { status: 'failed' });
+                       onUpdate(order.task_id, 'failed');
+                    }
+                } catch (err) {
+                    console.error(`Failed to check status for ${order.task_id}`, err);
+                    await updateOrder(order.task_id, { status: 'failed' });
+                    onUpdate(order.task_id, 'failed');
+                }
+            }
+        }, 5000); // Poll every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [orders, onUpdate, t]);
+};
+
+const RecentOrders = ({ orders }: { orders: Order[] }) => {
+    const { t } = useLanguage();
+    const [localOrders, setLocalOrders] = useState(orders);
+    const [downloading, setDownloading] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        setLocalOrders(orders);
+    }, [orders]);
+
+    const handleUpdate = (taskId: string, newStatus: Order['status']) => {
+        setLocalOrders(prevOrders => 
+            prevOrders.map(o => o.task_id === taskId ? { ...o, status: newStatus } : o)
+        );
+    };
+
+    useOrderPolling(localOrders, handleUpdate);
+
+    const handleDownload = async (taskId: string) => {
+        setDownloading(prev => new Set(prev).add(taskId));
+        try {
+            const { url } = await generateDownloadLink(taskId);
+            window.open(url, '_blank');
+        } catch (err) {
+            alert('Could not generate download link.');
+        } finally {
+            setDownloading(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(taskId);
+                return newSet;
+            });
+        }
+    };
+
+    if (orders.length === 0) return null;
+
+    return (
+        <div className="mt-8">
+            <h2 className="text-xl font-semibold text-center mb-4">{t('recentOrders')}</h2>
+            <div className="space-y-3">
+                {localOrders.map(order => (
+                    <div key={order.task_id} className="p-3 rounded-lg flex items-center justify-between bg-gray-800/80 glassmorphism">
+                        <div className="flex items-center">
+                            <img src={order.file_info.preview} alt="preview" className="w-12 h-12 rounded-md object-cover me-4" />
+                            <div>
+                                <p className="text-sm font-semibold text-white truncate max-w-xs">{order.file_info.site}</p>
+                                <p className="text-xs text-gray-400">{t('cost')}: {order.file_info.cost?.toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            {order.status === 'processing' && (
+                                <div className="flex items-center space-x-2 rtl:space-x-reverse text-yellow-400">
+                                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                    <span className="text-sm font-semibold">{t('processingStatus')}</span>
+                                </div>
+                            )}
+                            {order.status === 'ready' && (
+                               <button 
+                                 onClick={() => handleDownload(order.task_id)}
+                                 disabled={downloading.has(order.task_id)}
+                                 className="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-wait transition-colors flex items-center text-sm"
+                                >
+                                    {downloading.has(order.task_id) ? <ArrowPathIcon className="w-4 h-4 animate-spin me-2" /> : <ArrowDownTrayIcon className="w-4 h-4 me-2" />}
+                                    {t('downloadNow')}
+                                </button>
+                            )}
+                             {order.status === 'failed' && (
+                                <div className="text-sm font-semibold text-red-500">{t('failedStatus')}</div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 const StockDownloader = () => {
     const { t } = useLanguage();
     const { user, deductPoints } = useAuth();
     
-    // Mode state
     const [mode, setMode] = useState<Mode>('single');
-
-    // Single mode states
     const [url, setUrl] = useState('');
     const [state, setState] = useState<DownloadState>('idle');
     const [order, setOrder] = useState<StockOrder | null>(null);
     const [singleFileInfo, setSingleFileInfo] = useState<StockFileInfo | null>(null);
     
-    // Batch mode states
     const [batchUrls, setBatchUrls] = useState('');
     const [batchFileInfos, setBatchFileInfos] = useState<BatchFileInfo[]>([]);
     const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
     const [isFetchingBatch, setIsFetchingBatch] = useState(false);
     const [isOrderingBatch, setIsOrderingBatch] = useState(false);
-    const [batchOrderSuccessMessage, setBatchOrderSuccessMessage] = useState<string | null>(null);
-
-    // Common states
+    
+    const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+    
     const [error, setError] = useState<string | null>(null);
     const isModalOpen = state !== 'idle' && state !== 'fetching';
 
@@ -47,7 +149,6 @@ const StockDownloader = () => {
     }, [batchUrls]);
     const hasUrlCountError = currentUrlCount > 5;
 
-    // Reset states when switching modes
     useEffect(() => {
         setUrl('');
         setState('idle');
@@ -57,10 +158,9 @@ const StockDownloader = () => {
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
         setError(null);
-        setBatchOrderSuccessMessage(null);
+        // Do not clear recentOrders on mode switch
     }, [mode]);
 
-    // Effect to poll for single order status
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
         if (state === 'processing' && order?.task_id) {
@@ -114,6 +214,8 @@ const StockDownloader = () => {
         try {
             const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
             await deductPoints(singleFileInfo.cost);
+            const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo);
+            setRecentOrders(prev => [newOrder, ...prev]);
             setOrder(orderResult);
             setState('processing');
         } catch (err: any) {
@@ -136,7 +238,6 @@ const StockDownloader = () => {
     const handleGetBatchInfo = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        setBatchOrderSuccessMessage(null);
         const rawUrls = batchUrls.split('\n').map(u => u.trim()).filter(Boolean);
         
         if (rawUrls.length === 0) return;
@@ -145,7 +246,6 @@ const StockDownloader = () => {
             return;
         }
         
-        // Remove duplicates before fetching
         const uniqueUrls = [...new Set(rawUrls)];
 
         setIsFetchingBatch(true);
@@ -165,6 +265,7 @@ const StockDownloader = () => {
                     status: 'error',
                     error: (result.reason as Error).message,
                     sourceUrl: uniqueUrls[index],
+                    site: '', preview: '', cost: null
                 };
             }
         });
@@ -204,45 +305,63 @@ const StockDownloader = () => {
 
         setIsOrderingBatch(true);
         setError(null);
-        setBatchOrderSuccessMessage(null);
 
-        const orderPromises = filesToOrder.map(file => orderStockFile(file.site!, file.id!));
-        const results = await Promise.allSettled(orderPromises);
+        const orderPromises = filesToOrder.map(file => 
+            orderStockFile(file.site, file.id).then(orderResult => ({
+                file, orderResult, status: 'fulfilled'
+            })).catch(error => ({ file, error, status: 'rejected' }))
+        );
+
+        const results = await Promise.all(orderPromises);
         
-        const successfulOrders = results.filter(r => r.status === 'fulfilled').length;
-        const failedOrders = results.length - successfulOrders;
+        const newSuccessfulOrders: Order[] = [];
+        let successfulCost = 0;
+        let failedCount = 0;
+
+        for (const result of results) {
+            // FIX: Use a type guard ('in' operator) to ensure `orderResult` exists on the object,
+            // satisfying TypeScript's strict type checking for the discriminated union.
+            if (result.status === 'fulfilled' && 'orderResult' in result) {
+                try {
+                    const newOrder = await createOrder(user.id, result.orderResult.task_id, result.file);
+                    newSuccessfulOrders.push(newOrder);
+                    successfulCost += result.file.cost ?? 0;
+                } catch (dbError) {
+                    console.error("Failed to save order to DB:", dbError);
+                    failedCount++;
+                }
+            } else {
+                failedCount++;
+            }
+        }
         
         try {
-            if (successfulOrders > 0) {
-                await deductPoints(totalCost);
-                setBatchOrderSuccessMessage(t('batchOrderSuccess', { count: successfulOrders }));
+            if (successfulCost > 0) {
+                await deductPoints(successfulCost);
             }
         } catch (deductionError: any) {
             setError(deductionError.message);
         }
 
-        if (failedOrders > 0) {
+        if (failedCount > 0) {
             setError(prevError => {
-                const newError = t('batchOrderError', { count: failedOrders });
+                const newError = t('batchOrderError', { count: failedCount });
                 return prevError ? `${prevError}\n${newError}` : newError;
             });
         }
         
-        // Reset UI for a new batch
+        setRecentOrders(prev => [...newSuccessfulOrders, ...prev]);
         setBatchUrls('');
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
         setIsOrderingBatch(false);
     };
 
-
-    // Closes the modal but keeps the URL in the input field for correction.
     const handleCloseModal = () => {
         setState('idle');
         setError(null);
     }
 
-    // Resets the entire component state for a new download.
     const handleStartNew = () => {
         setUrl('');
         setState('idle');
@@ -303,8 +422,6 @@ const StockDownloader = () => {
             </div>
             
             {error && <p className="text-red-500 text-center font-semibold mt-4">{error}</p>}
-            {batchOrderSuccessMessage && <p className="text-green-500 text-center font-semibold mt-4">{batchOrderSuccessMessage}</p>}
-
 
             {batchFileInfos.length > 0 && (
                 <div className="mt-8 animate-fadeIn">
@@ -453,6 +570,8 @@ const StockDownloader = () => {
             </div>
             
             {mode === 'single' ? renderSingleMode() : renderBatchMode()}
+            
+            <RecentOrders orders={recentOrders} />
 
             {isModalOpen && (
                 <div 

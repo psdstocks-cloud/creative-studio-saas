@@ -22,8 +22,19 @@ export interface StockFileInfo {
 
 export interface StockOrder {
   task_id: string;
-  status: 'pending' | 'ready' | 'failed';
+  status: 'pending' | 'processing' | 'ready' | 'failed';
 }
+
+export interface Order {
+  id: string; // Supabase row ID
+  user_id: string;
+  created_at: string;
+  task_id: string;
+  status: 'processing' | 'ready' | 'failed';
+  file_info: StockFileInfo;
+  download_url?: string | null;
+}
+
 
 export interface StockDownloadLink {
     url: string;

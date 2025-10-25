@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
 import AuthCallback from './components/AuthCallback';
+import FilesManager from './components/FilesManager';
 
 const App = () => {
   const { language } = useLanguage();
@@ -46,6 +47,7 @@ const App = () => {
             <Route path="/" element={<Home />} />
             <Route path="/stock" element={<StockDownloader />} />
             <Route path="/ai" element={<AiGenerator />} />
+            <Route path="/files" element={<FilesManager />} />
             <Route path="/api" element={<ApiDocumentation />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -113,6 +113,15 @@ export const XMarkIcon = ({ className }: IconProps) => (
     </svg>
 );
 
+// FIX: Add missing XCircleIcon component
+export const XCircleIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M10 10l4 4m0 -4l-4 4" />
+  </svg>
+);
+
 export const WalletIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -161,4 +170,13 @@ export const ExclamationTriangleIcon = ({ className }: IconProps) => (
     <path d="M12 9v2m0 4v.01" />
     <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
   </svg>
+);
+
+export const ArrowDownTrayIcon = ({ className }: IconProps) => (
+    <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
+        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+        <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+        <polyline points="7 11 12 16 17 11" />
+        <line x1="12" y1="4" x2="12" y2="16" />
+    </svg>
 );

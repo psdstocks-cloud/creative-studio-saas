@@ -19,11 +19,11 @@ const Sidebar = () => {
     { id: 'home', label: t('home'), icon: <HomeIcon />, path: '/' },
     { id: 'stock', label: t('stockFullSize'), icon: <ImageIcon />, path: '/stock' },
     { id: 'ai', label: t('aiGeneration'), icon: <SparklesIcon />, path: '/ai' },
+    { id: 'files', label: t('filesManager'), icon: <ServerIcon />, path: '/files' },
     { id: 'api', label: t('api'), icon: <CodeBracketIcon />, path: '/api' },
   ];
 
   const otherItems = [
-    { id: 'files', label: t('filesManager'), icon: <ServerIcon /> },
     { id: 'settings', label: t('settings'), icon: <CogIcon /> },
   ];
 
