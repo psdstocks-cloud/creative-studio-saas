@@ -9,6 +9,7 @@ import LandingPage from './components/LandingPage';
 import Footer from './components/Footer';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
+import AuthCallback from './components/AuthCallback';
 
 const App = () => {
   const { language } = useLanguage();
@@ -28,7 +29,12 @@ const App = () => {
   }
 
   if (!isAuthenticated) {
-    return <LandingPage />;
+    return (
+      <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="*" element={<LandingPage />} />
+      </Routes>
+    );
   }
 
   return (

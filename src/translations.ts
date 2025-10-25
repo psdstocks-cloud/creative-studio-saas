@@ -35,6 +35,9 @@ export const translations = {
     resendConfirmation: "Resend confirmation",
     resending: "Resending...",
     confirmationResent: "A new confirmation link has been sent.",
+    emailVerifiedTitle: "Email Verified Successfully!",
+    emailVerifiedMessage: "Your account is now active and ready to use.",
+    redirectingMessage: "Redirecting you to the dashboard...",
     // Home Page
     homeTitle: "Creative Studio",
     homeSubtitle: "Your all-in-one platform for stock media and AI-powered image generation.",
@@ -139,6 +142,9 @@ export const translations = {
     resendConfirmation: "إعادة إرسال التأكيد",
     resending: "جاري الإرسال...",
     confirmationResent: "تم إرسال رابط تأكيد جديد.",
+    emailVerifiedTitle: "تم التحقق من البريد الإلكتروني بنجاح!",
+    emailVerifiedMessage: "حسابك الآن نشط وجاهز للاستخدام.",
+    redirectingMessage: "جاري إعادة توجيهك إلى لوحة التحكم...",
     // Home Page
     homeTitle: "الاستوديو الإبداعي",
     homeSubtitle: "منصتك المتكاملة للوسائط المخزنة وتوليد الصور بالذكاء الاصطناعي.",
