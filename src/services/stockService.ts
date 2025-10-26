@@ -5,33 +5,49 @@ const API_BASE_URL = 'https://nehtw.com/api';
 
 /**
  * A helper function to make authenticated API requests to the stock service.
- * It automatically adds the API key header and handles non-OK responses.
+ * It automatically adds the API key header, handles non-OK responses,
+ * and includes a timeout to prevent requests from hanging indefinitely.
  * @param endpoint The API endpoint to call (e.g., '/stockinfo/shutterstock/123').
+ * @param timeout The request timeout in milliseconds. Defaults to 15 seconds.
  * @returns A promise that resolves with the JSON response.
  */
-const apiFetch = async (endpoint: string) => {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      'X-Api-Key': API_KEY,
-    },
-  });
+const apiFetch = async (endpoint: string, timeout = 15000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  if (!response.ok) {
-    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.message || errorData.data || errorMessage;
-    } catch (e) {
-      // Ignore if the body isn't JSON or is empty.
-    }
-    throw new Error(errorMessage);
-  }
-  
   try {
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to parse API response as JSON", { endpoint, error });
-    throw new Error("Received an invalid or empty response from the server.");
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        'X-Api-Key': API_KEY,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.data || errorMessage;
+      } catch (e) {
+        // Ignore if the body isn't JSON or is empty.
+      }
+      throw new Error(errorMessage);
+    }
+
+    try {
+      return await response.json();
+    } catch (error) {
+      console.error("Failed to parse API response as JSON", { endpoint, error });
+      throw new Error("Received an invalid or empty response from the server.");
+    }
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      throw new Error(`The request timed out after ${timeout / 1000} seconds. Please try again.`);
+    }
+    // Re-throw other errors (like network errors or errors from the initial throw)
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 };
 
