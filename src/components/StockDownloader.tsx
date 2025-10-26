@@ -4,10 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { getStockFileInfo, orderStockFile, checkOrderStatus, generateDownloadLink } from '../services/stockService';
 import { createOrder, updateOrder, findOrderBySiteAndId, getOrders } from '../services/filesService';
 import type { StockFileInfo, StockOrder, Order } from '../types';
-import { LinkIcon, ArrowPathIcon, CheckCircleIcon, XMarkIcon, ExclamationTriangleIcon, ArrowDownTrayIcon } from './icons/Icons';
+import { LinkIcon, ArrowPathIcon, CheckCircleIcon, XMarkIcon, ExclamationTriangleIcon, ArrowDownTrayIcon, XCircleIcon } from './icons/Icons';
 import SupportedSites from './SupportedSites';
 
-type DownloadState = 'idle' | 'fetching' | 'info' | 'ordering' | 'processing' | 'ready' | 'error';
+type DownloadState = 'idle' | 'fetching' | 'info' | 'ordering' | 'error';
 type Mode = 'single' | 'batch';
 
 interface BatchFileInfo extends StockFileInfo {
@@ -18,7 +18,6 @@ interface BatchFileInfo extends StockFileInfo {
 }
 
 const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void) => {
-    const { t } = useLanguage();
     useEffect(() => {
         const processingOrders = orders.filter(o => o.status === 'processing');
         if (processingOrders.length === 0) return;
@@ -27,12 +26,9 @@ const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: 
             for (const order of processingOrders) {
                 try {
                     const statusResult = await checkOrderStatus(order.task_id);
-                    if (statusResult.status === 'ready') {
-                       await updateOrder(order.task_id, { status: 'ready' });
-                       onUpdate(order.task_id, 'ready');
-                    } else if (statusResult.status === 'failed') {
-                       await updateOrder(order.task_id, { status: 'failed' });
-                       onUpdate(order.task_id, 'failed');
+                     if (statusResult.status === 'ready' || statusResult.status === 'failed') {
+                       await updateOrder(order.task_id, { status: statusResult.status });
+                       onUpdate(order.task_id, statusResult.status);
                     }
                 } catch (err) {
                     console.error(`Failed to check status for ${order.task_id}`, err);
@@ -40,28 +36,17 @@ const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: 
                     onUpdate(order.task_id, 'failed');
                 }
             }
-        }, 5000);
+        }, 5000); // Poll every 5 seconds
 
         return () => clearInterval(interval);
-    }, [orders, onUpdate, t]);
+    }, [orders, onUpdate]);
 };
 
-const RecentOrders = ({ orders }: { orders: Order[] }) => {
+const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void }) => {
     const { t } = useLanguage();
-    const [localOrders, setLocalOrders] = useState(orders);
     const [downloading, setDownloading] = useState<Set<string>>(new Set());
 
-    useEffect(() => {
-        setLocalOrders(orders);
-    }, [orders]);
-
-    const handleUpdate = (taskId: string, newStatus: Order['status']) => {
-        setLocalOrders(prevOrders => 
-            prevOrders.map(o => o.task_id === taskId ? { ...o, status: newStatus } : o)
-        );
-    };
-
-    useOrderPolling(localOrders, handleUpdate);
+    useOrderPolling(orders, onUpdate);
 
     const handleDownload = async (taskId: string) => {
         setDownloading(prev => new Set(prev).add(taskId));
@@ -82,19 +67,19 @@ const RecentOrders = ({ orders }: { orders: Order[] }) => {
     if (orders.length === 0) return null;
 
     return (
-        <div className="mt-8">
+        <div className="mt-8 animate-fadeIn">
             <h2 className="text-xl font-semibold text-center mb-4">{t('recentOrders')}</h2>
             <div className="space-y-3">
-                {localOrders.map(order => (
+                {orders.map(order => (
                     <div key={order.id} className="p-3 rounded-lg flex items-center justify-between bg-gray-800/80 glassmorphism">
-                        <div className="flex items-center">
+                        <div className="flex items-center min-w-0">
                             <img src={order.file_info.preview} alt="preview" className="w-12 h-12 rounded-md object-cover me-4" />
-                            <div>
-                                <p className="text-sm font-semibold text-white truncate max-w-xs">{order.file_info.site}</p>
+                            <div className="min-w-0">
+                                <p className="text-sm font-semibold text-white truncate">{order.file_info.site}</p>
                                 <p className="text-xs text-gray-400">{t('cost')}: {order.file_info.cost?.toFixed(2)}</p>
                             </div>
                         </div>
-                        <div className="text-right">
+                        <div className="flex-shrink-0">
                             {order.status === 'processing' && (
                                 <div className="flex items-center space-x-2 rtl:space-x-reverse text-yellow-400">
                                     <ArrowPathIcon className="w-4 h-4 animate-spin" />
@@ -112,7 +97,10 @@ const RecentOrders = ({ orders }: { orders: Order[] }) => {
                                 </button>
                             )}
                              {order.status === 'failed' && (
-                                <div className="text-sm font-semibold text-red-500">{t('failedStatus')}</div>
+                                <div className="flex items-center space-x-2 rtl:space-x-reverse text-red-500">
+                                    <XCircleIcon className="w-4 h-4"/>
+                                    <span className="text-sm font-semibold">{t('failedStatus')}</span>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -122,39 +110,43 @@ const RecentOrders = ({ orders }: { orders: Order[] }) => {
     );
 };
 
+
 const StockDownloader = () => {
     const { t } = useLanguage();
     const { user, deductPoints } = useAuth();
     
     const [mode, setMode] = useState<Mode>('single');
+    
+    // Single mode state
     const [url, setUrl] = useState('');
     const [state, setState] = useState<DownloadState>('idle');
-    const [order, setOrder] = useState<StockOrder | null>(null);
     const [singleFileInfo, setSingleFileInfo] = useState<StockFileInfo | null>(null);
     const [previousOrder, setPreviousOrder] = useState<Order | null>(null);
     
+    // Batch mode state
     const [batchUrls, setBatchUrls] = useState('');
     const [batchFileInfos, setBatchFileInfos] = useState<BatchFileInfo[]>([]);
     const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
     const [isFetchingBatch, setIsFetchingBatch] = useState(false);
     const [isOrderingBatch, setIsOrderingBatch] = useState(false);
     
+    // Shared state
     const [recentOrders, setRecentOrders] = useState<Order[]>([]);
-    
     const [error, setError] = useState<string | null>(null);
-    const isModalOpen = state !== 'idle' && state !== 'fetching';
-    const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
     const currentUrlCount = useMemo(() => {
         return batchUrls.split('\n').map(u => u.trim()).filter(Boolean).length;
     }, [batchUrls]);
     const hasUrlCountError = currentUrlCount > 5;
     
-    const refreshRecentOrders = useCallback(() => {
+    const refreshRecentOrders = useCallback(async () => {
         if (user?.id) {
-            getOrders(user.id).then(setRecentOrders).catch(err => {
+            try {
+                const orders = await getOrders(user.id);
+                setRecentOrders(orders);
+            } catch(err) {
                  console.error("Failed to refresh recent orders:", err);
-            });
+            }
         }
     }, [user]);
 
@@ -162,48 +154,21 @@ const StockDownloader = () => {
        refreshRecentOrders();
     }, [refreshRecentOrders]);
 
+
     useEffect(() => {
+        handleStartNew();
+    }, [mode]);
+    
+    const handleStartNew = () => {
         setUrl('');
         setState('idle');
-        setOrder(null);
         setSingleFileInfo(null);
         setPreviousOrder(null);
         setBatchUrls('');
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
         setError(null);
-    }, [mode]);
-
-    useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        if (state === 'processing' && order?.task_id) {
-            const taskId = order.task_id;
-            interval = setInterval(async () => {
-                try {
-                    const statusResult = await checkOrderStatus(taskId);
-                    if (statusResult.status === 'ready') {
-                        await updateOrder(taskId, { status: 'ready' });
-                        setOrder({ task_id: taskId, status: 'ready' });
-                        setState('ready');
-                        clearInterval(interval);
-                    } else if (statusResult.status === 'failed') {
-                        await updateOrder(taskId, { status: 'failed' });
-                        setOrder({ task_id: taskId, status: 'failed' });
-                        setError(t('fileProcessingFailedError'));
-                        setState('error');
-                        clearInterval(interval);
-                    }
-                } catch (err) {
-                    setError(t('orderStatusError'));
-                    setState('error');
-                    clearInterval(interval);
-                }
-            }, 5000);
-        }
-        return () => {
-            if (interval) clearInterval(interval);
-        };
-    }, [state, order, t]);
+    };
 
     const handleGetInfo = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -212,10 +177,8 @@ const StockDownloader = () => {
         setState('fetching');
         setError(null);
         setSingleFileInfo(null);
-        setOrder(null);
         setPreviousOrder(null);
         
-        let isSuccess = false;
         try {
             const info = await getStockFileInfo(url);
             if (user) {
@@ -223,11 +186,10 @@ const StockDownloader = () => {
                 setPreviousOrder(prevOrder);
             }
             setSingleFileInfo(info);
-            isSuccess = true;
+            setState('info');
         } catch (err: any) {
             setError(err.message || t('fileFetchError'));
-        } finally {
-            setState(isSuccess ? 'info' : 'error');
+            setState('error');
         }
     };
 
@@ -235,51 +197,40 @@ const StockDownloader = () => {
         if (!singleFileInfo || !user) return;
 
         const isReDownload = !!previousOrder;
+        const cost = isReDownload ? 0 : singleFileInfo.cost;
 
-        const placeOrderFlow = async () => {
-            const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
-            await createOrder(user.id, orderResult.task_id, singleFileInfo);
-            setOrder(orderResult);
-            setState('processing');
-        };
+        if (cost === null || user.balance < cost) {
+            setError(t('insufficientPoints'));
+            setState('error');
+            return;
+        }
 
         setState('ordering');
         setError(null);
 
         try {
-            if (isReDownload) {
-                await placeOrderFlow();
-            } else {
-                if (singleFileInfo.cost === null) return;
-                if (user.balance < singleFileInfo.cost) {
-                    setError(t('insufficientPoints'));
-                    setState('error');
-                    return;
-                }
-                await deductPoints(singleFileInfo.cost);
-                await placeOrderFlow();
+            // Deduct points first for non-free downloads to ensure transaction validity
+            if (!isReDownload) {
+                await deductPoints(cost);
             }
+            
+            const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
+            const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo);
+            
+            // Immediately add to recent orders for instant feedback
+            setRecentOrders(prev => [newOrder, ...prev]);
+            handleStartNew();
+
         } catch (err: any) {
             setError(err.message || 'Could not place the order.');
             setState('error');
+             // Refund points if order failed after deduction
+            if (!isReDownload) {
+                await deductPoints(-cost); // Add points back
+            }
         }
     };
     
-    const handleDownload = async () => {
-        if (!order?.task_id) return;
-        setIsGeneratingLink(true);
-        try {
-            const { url: downloadUrl } = await generateDownloadLink(order.task_id);
-            window.open(downloadUrl, '_blank');
-        } catch (err) {
-            setError('Could not generate download link.');
-            setState('error');
-        } finally {
-            setIsGeneratingLink(false);
-        }
-    };
-
-    // ✅ FIXED: Proper async handling with finally block
     const handleGetBatchInfo = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -297,42 +248,30 @@ const StockDownloader = () => {
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
 
-        try {
-            const results = await Promise.allSettled(
-                uniqueUrls.map(u => getStockFileInfo(u))
-            );
-            
-            const newFileInfos: BatchFileInfo[] = [];
-            for (let i = 0; i < results.length; i++) {
-                const result = results[i];
-                const sourceUrl = uniqueUrls[i];
-                if (result.status === 'fulfilled') {
-                    const info = result.value;
-                    const prevOrder = user ? await findOrderBySiteAndId(user.id, info.site, info.id) : null;
-                    newFileInfos.push({
-                        ...info,
-                        status: 'success',
-                        sourceUrl,
-                        isReDownload: !!prevOrder
-                    });
-                } else {
-                    newFileInfos.push({
-                        id: `error-${i}-${Date.now()}`,
-                        status: 'error',
-                        error: (result.reason as Error).message,
-                        sourceUrl,
-                        site: '', preview: '', cost: null
-                    });
-                }
+        const results = await Promise.allSettled(
+            uniqueUrls.map(async (u) => {
+                const info = await getStockFileInfo(u);
+                const prevOrder = user ? await findOrderBySiteAndId(user.id, info.site, info.id) : null;
+                return { ...info, sourceUrl: u, isReDownload: !!prevOrder };
+            })
+        );
+        
+        const newFileInfos: BatchFileInfo[] = results.map((result, i) => {
+            if (result.status === 'fulfilled') {
+                return { ...result.value, status: 'success' };
+            } else {
+                 return {
+                    id: `error-${i}-${Date.now()}`,
+                    status: 'error',
+                    error: (result.reason as Error).message,
+                    sourceUrl: uniqueUrls[i],
+                    site: '', preview: '', cost: null
+                };
             }
+        });
 
-            setBatchFileInfos(newFileInfos);
-        } catch (err: any) {
-            setError(t('fileFetchError'));
-        } finally {
-            // ✅ CRITICAL FIX: Always reset loading state
-            setIsFetchingBatch(false);
-        }
+        setBatchFileInfos(newFileInfos);
+        setIsFetchingBatch(false);
     };
 
     const handleSelectionChange = (fileId: string, isSelected: boolean) => {
@@ -350,114 +289,150 @@ const StockDownloader = () => {
     const { totalCost, filesToOrder } = useMemo(() => {
         const selectedFiles = batchFileInfos.filter(info => selectedFileIds.has(info.id));
         const cost = selectedFiles.reduce((sum, info) => {
-             if (info.isReDownload) {
-                return sum;
-            }
+             if (info.isReDownload) return sum;
             return sum + (info.cost || 0);
         }, 0);
         return { totalCost: cost, filesToOrder: selectedFiles };
     }, [batchFileInfos, selectedFileIds]);
 
     const handleBatchOrder = async () => {
-        if (!user || totalCost > user.balance || filesToOrder.length === 0) {
-            setError(t(totalCost > user.balance ? 'insufficientPoints' : 'batchSelectError'));
-            return;
+        if (!user || filesToOrder.length === 0) return;
+        if (totalCost > user.balance) {
+             setError(t('insufficientPoints'));
+             return;
         }
 
         setIsOrderingBatch(true);
         setError(null);
-
+        
         try {
+            await deductPoints(totalCost);
+            
             const orderPromises = filesToOrder.map(file =>
                 orderStockFile(file.site, file.id)
-                    .then(orderResult => ({ file, orderResult, status: 'fulfilled' as const }))
-                    .catch(error => ({ file, error, status: 'rejected' as const }))
+                    .then(orderResult => createOrder(user.id, orderResult.task_id, file))
+                    .catch(err => {
+                        console.error(`Failed to order file ${file.id}`, err);
+                        return null; // Return null for failed orders
+                    })
             );
 
-            const results = await Promise.all(orderPromises);
+            const newOrders = (await Promise.all(orderPromises)).filter((o): o is Order => o !== null);
             
-            let successfulCost = 0;
-            let failedCount = 0;
+            const failedCount = filesToOrder.length - newOrders.length;
+            const refundedAmount = filesToOrder
+                .filter(file => !newOrders.some(o => o.file_info.id === file.id))
+                .reduce((sum, file) => sum + (file.isReDownload ? 0 : file.cost || 0), 0);
 
-            for (const result of results) {
-                if (result.status === 'fulfilled') {
-                    try {
-                        await createOrder(user.id, result.orderResult.task_id, result.file);
-                        if (!result.file.isReDownload) {
-                            successfulCost += result.file.cost ?? 0;
-                        }
-                    } catch (dbError) {
-                        console.error("Failed to save order to DB:", dbError);
-                        failedCount++;
-                    }
-                } else {
-                    failedCount++;
-                }
-            }
-            
-            if (successfulCost > 0) {
-                await deductPoints(successfulCost);
+            if (refundedAmount > 0) {
+                await deductPoints(-refundedAmount); // Refund
             }
 
             if (failedCount > 0) {
                 setError(t('batchOrderError', { count: failedCount }));
             }
+            
+            handleStartNew();
+            refreshRecentOrders();
+
         } catch (err: any) {
             setError(err.message || "An unexpected error occurred during batch order.");
+            // If initial deduction fails, no need to refund.
         } finally {
             setIsOrderingBatch(false);
-            setBatchUrls('');
-            setBatchFileInfos([]);
-            setSelectedFileIds(new Set());
-            refreshRecentOrders();
         }
     };
-
-    const handleCloseModal = () => {
-        setState('idle');
-        setError(null);
-        refreshRecentOrders();
-    }
-
-    const handleStartNew = () => {
-        setUrl('');
-        setState('idle');
-        setError(null);
-        setSingleFileInfo(null);
-        setOrder(null);
-        setPreviousOrder(null);
-        refreshRecentOrders();
-    }
+    
+    const handleRecentOrderUpdate = (taskId: string, newStatus: Order['status']) => {
+        setRecentOrders(prevOrders =>
+            prevOrders.map(o => o.task_id === taskId ? { ...o, status: newStatus } : o)
+        );
+    };
 
     const renderSingleMode = () => (
-         <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-            <form onSubmit={handleGetInfo}>
-                <label htmlFor="stock-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('stockUrlLabel')}</label>
-                <div className="flex">
-                    <span className="inline-flex items-center px-3 rounded-s-md border border-e-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                        <LinkIcon />
-                    </span>
-                    <input
-                        type="url"
-                        id="stock-url"
-                        value={url}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
-                        placeholder={t('stockUrlPlaceholder')}
-                        className="flex-1 block w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-e-lg focus:ring-blue-500 focus:border-blue-500"
-                        required
-                        disabled={state === 'fetching'}
-                    />
-                </div>
-                <button type="submit" disabled={state === 'fetching' || !url} className="w-full mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
-                    {state === 'fetching' ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : null}
-                    {state === 'fetching' ? t('fetching') : t('getFileInfo')}
-                </button>
-            </form>
-        </div>
+        <>
+            <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+                <form onSubmit={handleGetInfo}>
+                    <label htmlFor="stock-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('stockUrlLabel')}</label>
+                    <div className="flex">
+                        <span className="inline-flex items-center px-3 rounded-s-md border border-e-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                            <LinkIcon />
+                        </span>
+                        <input
+                            type="url"
+                            id="stock-url"
+                            value={url}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+                            placeholder={t('stockUrlPlaceholder')}
+                            className="flex-1 block w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-e-lg focus:ring-blue-500 focus:border-blue-500"
+                            required
+                            disabled={state === 'fetching' || state === 'ordering'}
+                        />
+                    </div>
+                    <button type="submit" disabled={state === 'fetching' || state === 'ordering' || !url} className="w-full mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+                        {state === 'fetching' ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : null}
+                        {state === 'fetching' ? t('fetching') : t('getFileInfo')}
+                    </button>
+                </form>
+            </div>
+            <div className="max-w-2xl mx-auto mt-6">
+                {state === 'fetching' && <div className="text-center p-8"><ArrowPathIcon className="h-10 w-10 text-blue-500 animate-spin mx-auto"/></div>}
+                {state === 'ordering' && <div className="text-center p-8"><ArrowPathIcon className="h-10 w-10 text-blue-500 animate-spin mx-auto"/><p className="mt-2 font-semibold">{t('ordering')}</p></div>}
+                {state === 'error' && (
+                    <div className="p-4 rounded-lg bg-red-900/50 text-red-300 flex items-start space-x-3 rtl:space-x-reverse">
+                        <ExclamationTriangleIcon className="w-6 h-6 flex-shrink-0"/>
+                        <p className="font-semibold">{error}</p>
+                    </div>
+                )}
+                {state === 'info' && singleFileInfo && user && (() => {
+                     const isReDownload = !!previousOrder;
+                     const cost = isReDownload ? 0 : singleFileInfo.cost;
+                     const hasEnoughPoints = cost !== null && user.balance >= cost;
+                    return (
+                        <div className="p-4 rounded-xl glassmorphism animate-fadeIn">
+                             {isReDownload && (
+                                <div className="bg-blue-900/50 text-blue-300 text-sm font-semibold p-3 rounded-lg mb-4 text-center">
+                                    {t('reDownloadFree')}
+                                </div>
+                            )}
+                            <div className="flex flex-col sm:flex-row items-center sm:space-x-4 rtl:space-x-reverse">
+                                <img src={singleFileInfo.preview} alt="Stock media preview" className="rounded-lg shadow-lg w-full sm:w-48 h-48 object-cover flex-shrink-0" />
+                                <div className="text-center sm:text-left mt-4 sm:mt-0">
+                                    <p className="text-lg text-gray-200">{t('costToDownload')}</p>
+                                    <p className="text-2xl">
+                                        {isReDownload ? (
+                                            <>
+                                                <span className="line-through text-gray-400 me-2">
+                                                    {singleFileInfo.cost?.toFixed(2)}
+                                                </span>
+                                                <span className="font-bold text-green-400">
+                                                    {t('free')}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <span className="font-bold text-blue-400">
+                                                {singleFileInfo.cost !== null ? `${singleFileInfo.cost.toFixed(2)} ${t('points')}` : 'N/A'}
+                                            </span>
+                                        )}
+                                    </p>
+                                    {!hasEnoughPoints && !isReDownload && <p className="text-red-500 font-semibold mt-2">{t('insufficientPoints')}</p>}
+                                    <div className="flex justify-center sm:justify-start space-x-4 rtl:space-x-reverse mt-6">
+                                        <button onClick={handleStartNew} className="bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg hover:bg-gray-500 transition-colors">{t('cancel')}</button>
+                                        <button onClick={handleOrder} disabled={!hasEnoughPoints || (singleFileInfo.cost === null && !isReDownload)} className="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors">
+                                            {isReDownload ? t('reDownload') : t('confirmAndOrder')}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+            </div>
+        </>
     );
 
     const renderBatchMode = () => (
-        <div className="max-w-4xl mx-auto">
+         <div className="max-w-4xl mx-auto">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
                 <form onSubmit={handleGetBatchInfo}>
                     <label htmlFor="batch-urls" className={`block text-sm font-medium mb-2 ${hasUrlCountError ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>{t('batchUrlLabel')}</label>
@@ -468,12 +443,12 @@ const StockDownloader = () => {
                         placeholder={t('batchUrlPlaceholder')}
                         rows={5}
                         className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-y"
-                        disabled={isFetchingBatch}
+                        disabled={isFetchingBatch || isOrderingBatch}
                     />
                     <div className="text-right text-sm text-gray-500 mt-1">
                         <span className={hasUrlCountError ? 'text-red-500 font-semibold' : ''}>{currentUrlCount}</span> / 5
                     </div>
-                     <button type="submit" disabled={isFetchingBatch || !batchUrls || hasUrlCountError} className="w-full mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
+                     <button type="submit" disabled={isFetchingBatch || isOrderingBatch || !batchUrls || hasUrlCountError} className="w-full mt-4 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center">
                         {isFetchingBatch ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : null}
                         {isFetchingBatch ? t('fetching') : t('getFileInfo')}
                     </button>
@@ -558,103 +533,7 @@ const StockDownloader = () => {
             )}
         </div>
     );
-
-    const renderModalContent = () => {
-        switch (state) {
-            case 'info':
-                if (!singleFileInfo || !user) return null;
-                const isReDownload = !!previousOrder;
-                const cost = isReDownload ? 0 : singleFileInfo.cost;
-                const hasEnoughPoints = cost !== null && user.balance >= cost;
-                
-                return (
-                    <>
-                        {isReDownload && (
-                            <div className="bg-blue-900/50 text-blue-300 text-sm font-semibold p-3 rounded-lg mb-4">
-                                {t('reDownloadFree')}
-                            </div>
-                        )}
-                        <img src={singleFileInfo.preview} alt="Stock media preview" className="rounded-lg mb-4 max-w-sm w-full mx-auto shadow-lg" />
-                        <p className="text-lg text-gray-200">
-                            {t('costToDownload')}: 
-                            {isReDownload ? (
-                                <>
-                                    <span className="line-through text-gray-400 ms-2">
-                                    {singleFileInfo.cost?.toFixed(2)} {t('points')}
-                                    </span>
-                                    <span className="font-bold text-green-400 ms-2">
-                                    {t('free')}
-                                    </span>
-                                </>
-                            ) : (
-                                <span className="font-bold text-blue-400 ms-2">
-                                    {singleFileInfo.cost !== null ? `${singleFileInfo.cost.toFixed(2)} ${t('points')}` : 'N/A'}
-                                </span>
-                            )}
-                        </p>
-
-                        {!hasEnoughPoints && !isReDownload && singleFileInfo.cost !== null && (
-                            <p className="text-red-500 font-semibold mt-2">{t('insufficientPoints')}</p>
-                        )}
-
-                        <div className="flex justify-center space-x-4 rtl:space-x-reverse mt-6">
-                            <button onClick={handleCloseModal} className="w-full bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg hover:bg-gray-500 transition-colors">{t('cancel')}</button>
-                            <button onClick={handleOrder} disabled={!hasEnoughPoints || (singleFileInfo.cost === null && !isReDownload)} className="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors">
-                                {isReDownload ? t('reDownload') : t('confirmAndOrder')}
-                            </button>
-                        </div>
-                    </>
-                );
-            case 'ordering':
-                 return (
-                    <div className="min-h-[200px] flex flex-col items-center justify-center">
-                        <ArrowPathIcon className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-                        <p className="text-xl font-semibold text-white">{t('ordering')}</p>
-                    </div>
-                );
-            case 'processing':
-                return (
-                    <div className="min-h-[200px] flex flex-col items-center justify-center">
-                        <ArrowPathIcon className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-                        <h2 className="text-2xl font-bold mb-2 text-white">{t('processingOrder')}</h2>
-                        <p className="text-gray-400 mb-4">{t('processingOrderDesc')}</p>
-                        {order && <p className="text-sm font-mono p-2 bg-gray-900 rounded">{t('taskId')}: {order.task_id}</p>}
-                    </div>
-                );
-            case 'ready':
-                return (
-                     <div className="min-h-[200px] flex flex-col items-center justify-center">
-                        <CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                        <h2 className="text-3xl font-bold mb-2 text-white">{t('fileReady')}</h2>
-                        <p className="text-gray-400 mb-6">{t('fileReadyDesc')}</p>
-                        <div className="flex justify-center space-x-4 rtl:space-x-reverse w-full">
-                            <button onClick={handleStartNew} className="w-full bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg hover:bg-gray-500 transition-colors">{t('startAnotherDownload')}</button>
-                            <button 
-                                onClick={handleDownload}
-                                disabled={isGeneratingLink}
-                                className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:bg-blue-400 disabled:cursor-wait"
-                            >
-                                {isGeneratingLink ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : <ArrowDownTrayIcon className="w-5 h-5 me-2" />}
-                                {isGeneratingLink ? t('generating') : t('downloadNow')}
-                            </button>
-                        </div>
-                    </div>
-                )
-            default:
-                return null;
-        }
-    }
     
-    const renderErrorModal = () => (
-        <div className="min-h-[200px] flex flex-col items-center justify-center text-center p-4">
-            <div className="relative w-16 h-16 mb-4">
-                <ExclamationTriangleIcon className="absolute inset-0 w-full h-full text-red-500" />
-            </div>
-            <p className="text-red-400 font-semibold mb-6 text-lg">{error}</p>
-            <button onClick={handleStartNew} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors w-full">{t('startAnotherDownload')}</button>
-        </div>
-    );
-
     return (
         <div className="animate-fadeIn">
             <h1 className="text-3xl font-bold text-center mb-6">{t('stockDownloaderTitle')}</h1>
@@ -676,22 +555,7 @@ const StockDownloader = () => {
             
             {mode === 'single' ? renderSingleMode() : renderBatchMode()}
             
-            <RecentOrders orders={recentOrders} />
-
-            {isModalOpen && (
-                <div 
-                    className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 animate-fadeIn"
-                    aria-modal="true"
-                    role="dialog"
-                >
-                    <div className="relative bg-gray-800 rounded-xl shadow-2xl p-6 sm:p-8 w-full max-w-md text-center border border-gray-700">
-                        <button onClick={handleCloseModal} className="absolute top-3 end-3 text-gray-400 hover:text-white" aria-label="Close modal">
-                            <XMarkIcon />
-                        </button>
-                        {state === 'error' ? renderErrorModal() : renderModalContent()}
-                    </div>
-                </div>
-            )}
+            <RecentOrders orders={recentOrders} onUpdate={handleRecentOrderUpdate} />
             
             <div className="mt-12">
                 <SupportedSites />
