@@ -13,10 +13,17 @@ const port = process.env.PORT || 3000;
 // Serve static files (like index.html, styles.css, favicon.svg) from the root directory
 app.use(express.static(path.join(__dirname, '')));
 
-// Catch-all handler for single-page application (SPA) routing
-// This sends index.html for any request that doesn't match a static file
-app.get('/*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+// This middleware acts as a catch-all for SPA routing.
+// It sends index.html for any request that doesn't match a static file,
+// allowing the React router to handle the URL.
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'), (err) => {
+    if (err) {
+      // Log the error and send a 500 status code
+      console.error('Error sending index.html:', err);
+      res.status(500).send(err);
+    }
+  });
 });
 
 app.listen(port, () => {
