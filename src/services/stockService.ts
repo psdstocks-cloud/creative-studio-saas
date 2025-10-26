@@ -168,6 +168,11 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
     preview: previewUrl,
     cost: !isNaN(parsedCost) ? parsedCost : null,
     debugid: data.debugid,
+    title: data.title,
+    name: data.name,
+    ext: data.ext,
+    author: data.author,
+    sizeInBytes: data.sizeInBytes,
   };
 };
 

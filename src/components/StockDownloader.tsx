@@ -17,6 +17,19 @@ interface BatchFileInfo extends StockFileInfo {
     isReDownload?: boolean;
 }
 
+const formatBytes = (bytes: number | string | undefined, decimals = 2) => {
+    if (bytes === undefined) return 'N/A';
+    const bytesNum = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+    if (bytesNum === 0) return '0 Bytes';
+
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+
+    const i = Math.floor(Math.log(bytesNum) / Math.log(k));
+    return parseFloat((bytesNum / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void) => {
     useEffect(() => {
         const processingOrders = orders.filter(o => o.status === 'processing');
@@ -75,7 +88,7 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
                         <div className="flex items-center min-w-0">
                             <img src={order.file_info.preview} alt="preview" className="w-12 h-12 rounded-md object-cover me-4" />
                             <div className="min-w-0">
-                                <p className="text-sm font-semibold text-white truncate">{order.file_info.site}</p>
+                                <p className="text-sm font-semibold text-white truncate" title={order.file_info.title || order.file_info.name}>{order.file_info.title || order.file_info.name || order.file_info.site}</p>
                                 <p className="text-xs text-gray-400">{t('cost')}: {order.file_info.cost?.toFixed(2)}</p>
                             </div>
                         </div>
@@ -395,32 +408,43 @@ const StockDownloader = () => {
                                     {t('reDownloadFree')}
                                 </div>
                             )}
-                            <div className="flex flex-col sm:flex-row items-center sm:space-x-4 rtl:space-x-reverse">
+                            <div className="flex flex-col sm:flex-row items-start sm:space-x-6 rtl:space-x-reverse">
                                 <img src={singleFileInfo.preview} alt="Stock media preview" className="rounded-lg shadow-lg w-full sm:w-48 h-48 object-cover flex-shrink-0" />
-                                <div className="text-center sm:text-left mt-4 sm:mt-0">
-                                    <p className="text-lg text-gray-200">{t('costToDownload')}</p>
-                                    <p className="text-2xl">
-                                        {isReDownload ? (
-                                            <>
-                                                <span className="line-through text-gray-400 me-2">
-                                                    {singleFileInfo.cost?.toFixed(2)}
+                                <div className="flex-1 text-center sm:text-left mt-4 sm:mt-0 w-full">
+                                    <h3 className="text-xl font-bold text-white mb-2" title={singleFileInfo.title}>{singleFileInfo.title || t('fileDetails')}</h3>
+                                    
+                                    <ul className="text-sm text-gray-300 space-y-1.5 mb-4 border-t border-b border-white/10 py-3">
+                                        {singleFileInfo.name && <li className="flex justify-between"><span>{t('fileName')}:</span> <span className="font-medium text-gray-200 truncate" title={singleFileInfo.name}>{singleFileInfo.name}</span></li>}
+                                        {singleFileInfo.author && <li className="flex justify-between"><span>{t('author')}:</span> <span className="font-medium text-gray-200">{singleFileInfo.author}</span></li>}
+                                        {singleFileInfo.ext && <li className="flex justify-between"><span>{t('fileType')}:</span> <span className="font-medium text-gray-200">{singleFileInfo.ext.toUpperCase()}</span></li>}
+                                        {singleFileInfo.sizeInBytes && <li className="flex justify-between"><span>{t('size')}:</span> <span className="font-medium text-gray-200">{formatBytes(singleFileInfo.sizeInBytes)}</span></li>}
+                                    </ul>
+
+                                    <div className="bg-gray-900/50 p-4 rounded-lg">
+                                        <p className="text-lg text-gray-200">{t('costToDownload')}:</p>
+                                        <p className="text-2xl mt-1">
+                                            {isReDownload ? (
+                                                <>
+                                                    <span className="line-through text-gray-400 me-2">
+                                                        {singleFileInfo.cost?.toFixed(2)}
+                                                    </span>
+                                                    <span className="font-bold text-green-400">
+                                                        {t('free')}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <span className="font-bold text-blue-400">
+                                                    {singleFileInfo.cost !== null ? `${singleFileInfo.cost.toFixed(2)} ${t('points')}` : 'N/A'}
                                                 </span>
-                                                <span className="font-bold text-green-400">
-                                                    {t('free')}
-                                                </span>
-                                            </>
-                                        ) : (
-                                            <span className="font-bold text-blue-400">
-                                                {singleFileInfo.cost !== null ? `${singleFileInfo.cost.toFixed(2)} ${t('points')}` : 'N/A'}
-                                            </span>
-                                        )}
-                                    </p>
-                                    {!hasEnoughPoints && !isReDownload && <p className="text-red-500 font-semibold mt-2">{t('insufficientPoints')}</p>}
-                                    <div className="flex justify-center sm:justify-start space-x-4 rtl:space-x-reverse mt-6">
-                                        <button onClick={handleStartNew} className="bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg hover:bg-gray-500 transition-colors">{t('cancel')}</button>
-                                        <button onClick={handleOrder} disabled={!hasEnoughPoints || (singleFileInfo.cost === null && !isReDownload)} className="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors">
-                                            {isReDownload ? t('reDownload') : t('confirmAndOrder')}
-                                        </button>
+                                            )}
+                                        </p>
+                                        {!hasEnoughPoints && !isReDownload && <p className="text-red-500 font-semibold mt-2">{t('insufficientPoints')}</p>}
+                                        <div className="flex justify-center sm:justify-start space-x-4 rtl:space-x-reverse mt-4">
+                                            <button onClick={handleStartNew} className="bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg hover:bg-gray-500 transition-colors">{t('cancel')}</button>
+                                            <button onClick={handleOrder} disabled={!hasEnoughPoints || (singleFileInfo.cost === null && !isReDownload)} className="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors">
+                                                {isReDownload ? t('reDownload') : t('confirmAndOrder')}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

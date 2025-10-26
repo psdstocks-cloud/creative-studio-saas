@@ -19,6 +19,11 @@ export interface StockFileInfo {
   preview: string;
   cost: number | null;
   debugid?: string;
+  title?: string;
+  name?: string;
+  ext?: string;
+  author?: string;
+  sizeInBytes?: number | string;
 }
 
 export interface StockOrder {
