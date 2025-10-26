@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "rimraf dist && mkdir -p dist && cp public/index.html dist/index.html && cp public/favicon.svg dist/favicon.svg && cp public/favicon.ico dist/favicon.ico && tailwindcss -i src/input.css -o dist/output.css --minify && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --define:process.env.API_KEY='\"'$API_KEY'\"' --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' --minify",
+    "build": "npm install express && rimraf dist && mkdir -p dist && cp public/index.html dist/index.html && cp public/favicon.svg dist/favicon.svg && cp public/favicon.ico dist/favicon.ico && tailwindcss -i src/input.css -o dist/output.css --minify && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --define:process.env.API_KEY='\"'$API_KEY'\"' --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' --minify",
     "dev": "tailwindcss -i src/input.css -o dist/output.css && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --servedir=. --watch",
     "start": "node server.js"
   },
@@ -22,5 +22,8 @@
     "rimraf": "^5.0.7",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.5.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
