@@ -1,9 +1,9 @@
-// These variables are injected at build time by esbuild.
-// See the 'build' script in package.json.
-const supabaseUrl = process.env.SUPABASE_URL?.trim() || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY?.trim() || '';
+// Hardcoded credentials for testing, as requested.
+// In production, these should be handled securely via environment variables.
+const supabaseUrl = 'https://axjgrfrfhqyqjmksxxld.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4amdyZnJmaHF5cWpta3N4eGxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE0MTcwMzEsImV4cCI6MjA3Njk5MzAzMX0.fjuzbJDxQ93fVz5CtyzjCrDWtBtQXCminY0q9BShFzM';
 
-// Perform a check to ensure variables are not just empty strings after trimming
+// Check remains useful to ensure the hardcoded values are not empty.
 const areSupabaseCredentialsAvailable = !!(supabaseUrl && supabaseAnonKey);
 
 export const config = {
