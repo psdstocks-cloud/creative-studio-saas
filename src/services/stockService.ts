@@ -110,17 +110,17 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   // Robustly parse the cost, which might be a string or number.
   const parsedCost = parseFloat(costValue);
 
-  // FIX: Extract additional file details from the API response.
+  // Fix: Populate all available fields for the StockFileInfo interface.
   return {
     id: data.id,
     site: data.site,
     preview: previewUrl,
     cost: !isNaN(parsedCost) ? parsedCost : null,
-    title: data.title,
+    title: data.title || data.name,
     name: data.name,
     author: data.author,
     ext: data.ext,
-    sizeInBytes: data.size_in_bytes,
+    sizeInBytes: data.size,
     debugid: data.debugid,
   };
 };

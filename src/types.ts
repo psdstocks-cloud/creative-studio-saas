@@ -1,5 +1,6 @@
 
 
+
 export interface AiJobFile {
   index: number;
   thumb_sm: string;
@@ -26,29 +27,18 @@ export interface StockFileInfo {
   site: string;
   preview: string;
   cost: number | null;
-  // FIX: Added optional properties to support detailed file views.
-  title?: string | null;
-  name?: string | null;
-  author?: string | null;
-  ext?: string | null;
-  sizeInBytes?: number | string | null;
-  debugid?: string | null;
+  // Fix: Add optional properties to support detailed file views.
+  title?: string;
+  name?: string;
+  author?: string;
+  ext?: string;
+  sizeInBytes?: number | string;
+  debugid?: string;
 }
 
 export interface StockOrder {
   task_id: string;
   status: 'pending' | 'ready' | 'failed';
-}
-
-// FIX: Added Order interface for database records.
-export interface Order {
-  id: number;
-  user_id: string;
-  task_id: string;
-  file_info: StockFileInfo;
-  status: 'processing' | 'ready' | 'failed';
-  created_at: string;
-  download_url: string | null;
 }
 
 export interface StockDownloadLink {
@@ -66,4 +56,15 @@ export interface User {
   id: string; // From Supabase Auth
   email: string;
   balance: number; // From our 'profiles' table
+}
+
+// Fix: Add and export the Order interface for managing user file history.
+export interface Order {
+  id: number;
+  created_at: string;
+  user_id: string;
+  task_id: string;
+  file_info: StockFileInfo;
+  status: 'processing' | 'ready' | 'failed';
+  download_url: string | null;
 }
