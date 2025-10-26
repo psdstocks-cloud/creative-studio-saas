@@ -1,26 +1,18 @@
 {
   "name": "creative-studio-saas",
-  "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "A comprehensive SaaS platform for creative professionals in Egypt.",
+  "main": "server.js",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.2.0",
-    "react-router-dom": "^7.9.4",
-    "react-dom": "^19.2.0",
-    "@google/genai": "^1.27.0",
-    "express": "^5.1.0",
-    "path": "^0.12.7",
-    "url": "^0.11.4"
+    "start": "node server.js",
+    "build": "rimraf dist && mkdir dist && esbuild index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --minify && cp index.html styles.css favicon.svg dist/"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "esbuild": "^0.20.2",
+    "rimraf": "^5.0.5"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
   }
 }
