@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -30,6 +31,8 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
         } catch (err: any) {
             if (err.message && err.message.toLowerCase().includes('email not confirmed')) {
                 setEmailNotConfirmed(true);
+            } else if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
+                setError(t('signInFailedToFetch'));
             } else {
                 setError(err.message || 'An unexpected error occurred.');
             }

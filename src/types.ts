@@ -1,3 +1,4 @@
+
 export interface AiJobFile {
   index: number;
   thumb_sm: string;
@@ -8,9 +9,15 @@ export interface AiJobFile {
 export interface AiJob {
   _id: string;
   prompt: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   percentage_complete: number;
   files: AiJobFile[];
+  type?: string; // "imagine / vary / upscale"
+  cost?: number;
+  error_message?: string | null;
+  parent_nh_job_id?: string | null;
+  get_result_url?: string; // Manually added for state management
+  created_at?: number;
 }
 
 export interface StockFileInfo {

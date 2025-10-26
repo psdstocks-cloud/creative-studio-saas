@@ -1,3 +1,4 @@
+
 export const translations = {
   en: {
     // General
@@ -22,6 +23,7 @@ export const translations = {
     password: "Password",
     confirmPassword: "Confirm Password",
     signInToAccount: "Sign in to your account",
+    signInFailedToFetch: "Could not connect to the authentication server. Please check your internet connection and try again.",
     forgotPassword: "Forgot Password?",
     forgotPasswordTitle: "Reset Your Password",
     forgotPasswordInstruction: "Enter the email address associated with your account and we'll send you a link to reset your password.",
@@ -124,6 +126,8 @@ export const translations = {
     vary: "Vary",
     upscale: "Upscale",
     createNew: "Create New",
+    aiJobFailed: "Generation Failed",
+    aiActionError: "Could not perform action. Please try again.",
     // API Docs
     apiDocsTitle: "API Documentation v2",
     apiDocsSubtitle: "Integrate our services into your application.",
@@ -169,6 +173,7 @@ export const translations = {
     password: "كلمة المرور",
     confirmPassword: "تأكيد كلمة المرور",
     signInToAccount: "سجل الدخول إلى حسابك",
+    signInFailedToFetch: "تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.",
     forgotPassword: "هل نسيت كلمة المرور؟",
     forgotPasswordTitle: "إعادة تعيين كلمة المرور",
     forgotPasswordInstruction: "أدخل عنوان البريد الإلكتروني المرتبط بحسابك وسنرسل لك رابطًا لإعادة تعيين كلمة المرور الخاصة بك.",
@@ -218,7 +223,7 @@ export const translations = {
     reDownloadFree: "لقد طلبت هذا الملف من قبل. أعد تنزيله مجانًا.",
     reDownload: "إعادة تحميل",
     processingOrder: "جاري معالجة طلبك",
-    processingOrderDesc: "طلبك في قائمة الانتظार. نحن نعمل عليه الآن!",
+    processingOrderDesc: "طلبك في قائمة الانتظار. نحن نعمل عليه الآن!",
     taskId: "معرف المهمة",
     fileReady: "ملفك جاهز!",
     fileReadyDesc: "تم تجهيز الملف بنجاح للتحميل.",
@@ -271,6 +276,8 @@ export const translations = {
     vary: "تغيير",
     upscale: "تكبير",
     createNew: "إنشاء جديد",
+    aiJobFailed: "فشل التوليد",
+    aiActionError: "لم يتمكن من تنفيذ الإجراء. يرجى المحاولة مرة أخرى.",
     // API Docs
     apiDocsTitle: "توثيق الواجهة البرمجية v2",
     apiDocsSubtitle: "قم بدمج خدماتنا في تطبيقك.",
