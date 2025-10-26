@@ -12,6 +12,7 @@ interface AuthContextType {
   signOut: () => void;
   deductPoints: (amount: number) => Promise<void>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
+  // FIX: Add resendConfirmationEmail to the context type to be used in the SignIn component.
   resendConfirmationEmail: (email: string) => Promise<void>;
 }
 
@@ -100,12 +101,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
   
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-     if (error) {
-      if (error.message.toLowerCase().includes('email not confirmed')) {
-         throw new Error(error.message); // Specific error for UI to handle
-      }
-      throw new Error("Invalid credentials. Please try again.");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw new Error(error.message || "Invalid credentials. Please try again.");
     }
   }, []);
 
@@ -115,9 +113,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      }
     });
 
     if (error) {
@@ -159,7 +154,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const sendPasswordResetEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
         // IMPORTANT: You must configure this URL in your Supabase project's email templates.
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/auth/callback`,
     });
     if (error) {
         // We don't throw an error to the user to prevent email enumeration.
@@ -170,16 +165,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return Promise.resolve();
   }, []);
 
+  // FIX: Implement the resendConfirmationEmail function using Supabase auth.
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: email,
     });
+
     if (error) {
-      console.error("Resend confirmation error:", error.message);
-      throw new Error("Could not resend confirmation email. Please try again later.");
+        console.error("Error resending confirmation email:", error.message);
+        throw new Error(error.message || "Could not resend confirmation email.");
     }
   }, []);
+
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, sendPasswordResetEmail, resendConfirmationEmail }}>
