@@ -182,16 +182,33 @@ export const generateDownloadLink = async (taskId: string): Promise<StockDownloa
     // Note: API documentation specifies v2 for this endpoint.
     const responseData = await apiFetch(`/v2/order/${taskId}/download`);
 
-    // Defensive parsing: The API response for this endpoint might be inconsistent.
-    // It could be { "url": "..." }, { "data": { "url": "..." } }, or { "data": "..." }.
-    // We need to handle all these cases to extract the final URL string.
-    const data = responseData.data || responseData;
-    const downloadUrl = data.url || data; // Handles both { url: "..." } and the direct URL string.
+    // For debugging purposes, it's helpful to see what the API is actually sending.
+    console.log('Download link API response:', responseData);
 
-    // Validate that we have a usable URL before returning.
-    if (typeof downloadUrl !== 'string' || !downloadUrl.startsWith('http')) {
-        console.error('Invalid download link format received from API:', responseData);
-        throw new Error('Could not get a valid download link from the server.');
+    let downloadUrl: string | null = null;
+    
+    // Normalize the data part of the response, which can be nested.
+    const data = responseData.data || responseData;
+
+    if (typeof data === 'string' && data.startsWith('http')) {
+        // Case 1: The data itself is the URL string.
+        downloadUrl = data;
+    } else if (typeof data === 'object' && data !== null) {
+        // Case 2: The data is an object. Search for the URL within it.
+        const possibleKeys = ['downloadUrl', 'url', 'link', 'download_url'];
+        for (const key of possibleKeys) {
+            const potentialUrl = data[key];
+            if (typeof potentialUrl === 'string' && potentialUrl.startsWith('http')) {
+                downloadUrl = potentialUrl;
+                break; // Found a valid URL, exit the loop.
+            }
+        }
+    }
+
+    // Validate that we found a usable URL.
+    if (!downloadUrl) {
+        console.error('Could not extract a valid download URL from the API response:', responseData);
+        throw new Error('Could not get a valid download link from the server. The response format was unexpected.');
     }
 
     return { url: downloadUrl };
