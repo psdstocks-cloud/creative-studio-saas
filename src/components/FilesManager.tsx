@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getOrders, updateOrder } from '../services/filesService';
 import { checkOrderStatus, generateDownloadLink } from '../services/stockService';
 import type { Order } from '../types';
-import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, ArrowDownTrayIcon, ServerIcon } from './icons/Icons';
+import { ArrowPathIcon, CheckCircleIcon, XCircleIcon, ArrowDownTrayIcon, ServerIcon, MagnifyingGlassIcon } from './icons/Icons';
 import { Link } from 'react-router-dom';
 
 const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void) => {
@@ -40,6 +40,7 @@ const FilesManager = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [downloading, setDownloading] = useState<Set<string>>(new Set());
+    const [searchQuery, setSearchQuery] = useState('');
 
     const handleUpdate = (taskId: string, newStatus: Order['status']) => {
         setOrders(prevOrders =>
@@ -64,6 +65,31 @@ const FilesManager = () => {
         };
         fetchOrders();
     }, [user]);
+    
+    const filteredOrders = useMemo(() => {
+        if (!searchQuery.trim()) {
+            return orders;
+        }
+        const lowercasedQuery = searchQuery.toLowerCase().trim();
+        return orders.filter(order => {
+            const { id, site, debugid } = order.file_info;
+            
+            // Check against file ID, site name, or debug ID
+            if (id.toLowerCase().includes(lowercasedQuery) ||
+                site.toLowerCase().includes(lowercasedQuery) ||
+                (debugid && debugid.toLowerCase().includes(lowercasedQuery))) {
+                return true;
+            }
+            
+            // Heuristic for URL search: check if the query is a URL-like string that contains the file ID
+            if (lowercasedQuery.includes(id.toLowerCase()) && lowercasedQuery.length > id.length) {
+                return true;
+            }
+
+            return false;
+        });
+    }, [orders, searchQuery]);
+
 
     const handleDownload = async (taskId: string) => {
         setDownloading(prev => new Set(prev).add(taskId));
@@ -113,6 +139,15 @@ const FilesManager = () => {
                 </div>
             );
         }
+         if (filteredOrders.length === 0) {
+            return (
+                 <div className="text-center py-16">
+                    <MagnifyingGlassIcon className="w-16 h-16 mx-auto text-gray-500 mb-4" />
+                    <h3 className="text-xl font-semibold text-white">{t('noResultsFound', { query: searchQuery })}</h3>
+                    <p className="text-gray-400 mt-2">{t('noResultsFoundDesc')}</p>
+                </div>
+            );
+        }
         return (
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-700">
@@ -128,10 +163,13 @@ const FilesManager = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-gray-800/50 divide-y divide-gray-700">
-                        {orders.map(order => (
+                        {filteredOrders.map(order => (
                             <tr key={order.id}>
                                 <td className="px-6 py-4 whitespace-nowrap"><img src={order.file_info.preview} alt="preview" className="w-16 h-10 rounded object-cover" /></td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{order.file_info.site}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                    <div className="font-semibold text-gray-300">{order.file_info.site}</div>
+                                    <div className="text-xs text-gray-400 font-mono">{order.file_info.id}</div>
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(order.created_at).toLocaleDateString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{order.file_info.cost?.toFixed(2)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-400">{order.file_info.debugid || 'N/A'}</td>
@@ -160,6 +198,22 @@ const FilesManager = () => {
         <div className="animate-fadeIn">
             <h1 className="text-3xl font-bold mb-2">{t('filesManagerTitle')}</h1>
             <p className="text-gray-400 mb-6">{t('filesManagerSubtitle')}</p>
+
+             {orders.length > 0 && (
+                <div className="relative mb-4">
+                    <div className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3.5">
+                        <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <input
+                        type="search"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder={t('searchPlaceholder')}
+                        className="w-full ps-10 p-3 bg-gray-700/80 border border-transparent rounded-lg focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400"
+                    />
+                </div>
+            )}
+            
             <div className="bg-gray-800/80 rounded-xl shadow-lg p-1 glassmorphism">
                 {renderContent()}
             </div>
