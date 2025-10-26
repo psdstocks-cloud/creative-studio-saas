@@ -1,4 +1,3 @@
-
 import type { StockFileInfo, StockOrder, StockDownloadLink, SupportedSite } from '../types';
 
 const API_KEY = 'A8K9bV5s2OX12E8cmS4I96mtmSNzv7';
@@ -20,7 +19,6 @@ const apiFetch = async (endpoint: string) => {
   if (!response.ok) {
     let errorMessage = `API Error: ${response.status} ${response.statusText}`;
     try {
-      // Attempt to get a more specific error message from the API's response body.
       const errorData = await response.json();
       errorMessage = errorData.message || errorData.data || errorMessage;
     } catch (e) {
@@ -28,8 +26,13 @@ const apiFetch = async (endpoint: string) => {
     }
     throw new Error(errorMessage);
   }
-
-  return response.json();
+  
+  try {
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to parse API response as JSON", { endpoint, error });
+    throw new Error("Received an invalid or empty response from the server.");
+  }
 };
 
 /**

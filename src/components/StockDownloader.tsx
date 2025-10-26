@@ -211,12 +211,15 @@ const StockDownloader = () => {
 
     const handleGetInfo = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!url) return;
+        if (!url || state === 'fetching') return;
+        
         setState('fetching');
         setError(null);
         setSingleFileInfo(null);
         setOrder(null);
         setPreviousOrder(null);
+        
+        let isSuccess = false;
         try {
             const info = await getStockFileInfo(url);
             if (user) {
@@ -224,10 +227,11 @@ const StockDownloader = () => {
                 setPreviousOrder(prevOrder);
             }
             setSingleFileInfo(info);
-            setState('info');
+            isSuccess = true;
         } catch (err: any) {
             setError(err.message || t('fileFetchError'));
-            setState('error');
+        } finally {
+            setState(isSuccess ? 'info' : 'error');
         }
     };
 
@@ -296,36 +300,41 @@ const StockDownloader = () => {
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
 
-        const results = await Promise.allSettled(
-            uniqueUrls.map(u => getStockFileInfo(u))
-        );
-        
-        const newFileInfos: BatchFileInfo[] = [];
-        for (let i = 0; i < results.length; i++) {
-            const result = results[i];
-            const sourceUrl = uniqueUrls[i];
-            if (result.status === 'fulfilled') {
-                const info = result.value;
-                const prevOrder = user ? await findOrderBySiteAndId(user.id, info.site, info.id) : null;
-                newFileInfos.push({
-                    ...info,
-                    status: 'success',
-                    sourceUrl,
-                    isReDownload: !!prevOrder
-                });
-            } else {
-                newFileInfos.push({
-                    id: `error-${i}-${Date.now()}`,
-                    status: 'error',
-                    error: (result.reason as Error).message,
-                    sourceUrl,
-                    site: '', preview: '', cost: null
-                });
+        try {
+            const results = await Promise.allSettled(
+                uniqueUrls.map(u => getStockFileInfo(u))
+            );
+            
+            const newFileInfos: BatchFileInfo[] = [];
+            for (let i = 0; i < results.length; i++) {
+                const result = results[i];
+                const sourceUrl = uniqueUrls[i];
+                if (result.status === 'fulfilled') {
+                    const info = result.value;
+                    const prevOrder = user ? await findOrderBySiteAndId(user.id, info.site, info.id) : null;
+                    newFileInfos.push({
+                        ...info,
+                        status: 'success',
+                        sourceUrl,
+                        isReDownload: !!prevOrder
+                    });
+                } else {
+                    newFileInfos.push({
+                        id: `error-${i}-${Date.now()}`,
+                        status: 'error',
+                        error: (result.reason as Error).message,
+                        sourceUrl,
+                        site: '', preview: '', cost: null
+                    });
+                }
             }
-        }
 
-        setBatchFileInfos(newFileInfos);
-        setIsFetchingBatch(false);
+            setBatchFileInfos(newFileInfos);
+        } catch (err: any) {
+            setError(t('fileFetchError'));
+        } finally {
+            setIsFetchingBatch(false);
+        }
     };
 
     const handleSelectionChange = (fileId: string, isSelected: boolean) => {
