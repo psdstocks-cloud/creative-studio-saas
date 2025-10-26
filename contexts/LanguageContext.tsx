@@ -87,6 +87,7 @@ const translations: Record<string, Record<string, string>> = {
     forgotPassword: 'Forgot password?',
     dontHaveAccount: "Don't have an account?",
     createAccount: 'Create one',
+    invalidCredentials: 'Invalid email or password.',
   },
   ar: {
     signIn: 'تسجيل الدخول',
@@ -173,6 +174,7 @@ const translations: Record<string, Record<string, string>> = {
     forgotPassword: 'هل نسيت كلمة المرور؟',
     dontHaveAccount: 'ليس لديك حساب؟',
     createAccount: 'أنشئ واحدًا',
+    invalidCredentials: 'البريد الإلكتروني أو كلمة المرور غير صالحة.',
   },
 };
 

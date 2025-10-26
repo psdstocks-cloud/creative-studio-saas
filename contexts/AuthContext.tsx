@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import * as authService from '../services/authService';
+
 
 // This interface defines the user object used throughout the app.
 interface User {
@@ -28,13 +29,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Fetches extended user profile data (e.g., balance) from a 'profiles' table in Supabase.
   const fetchUserProfile = useCallback(async (supabaseUser: SupabaseUser): Promise<User | null> => {
-    if (!supabase) return null; // Guard against uninitialized client
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('id', supabaseUser.id)
-        .single();
+      const { data, error } = await authService.fetchUserProfileFromDb(supabaseUser);
       
       if (error) {
         console.error('Error fetching user profile:', error);
@@ -59,23 +55,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Effect to check for an active session on mount and listen for auth state changes.
   useEffect(() => {
-    // If the Supabase client is not initialized, we can't do anything.
-    if (!supabase) {
-      setIsLoading(false);
-      return;
-    }
-
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const profile = await fetchUserProfile(session.user);
-        setUser(profile);
+      try {
+        const { data: { session } } = await authService.getSupabaseSession();
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user);
+          setUser(profile);
+        }
+      } catch (e) {
+        console.error("AuthContext: Cannot get session.", e);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     getSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
+    const { data: authListener } = authService.onSupabaseAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
           const profile = await fetchUserProfile(session.user);
@@ -93,35 +88,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchUserProfile, isLoading]);
 
   const signIn = async (email: string, pass: string) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    const { error } = await authService.signInUser(email, pass);
     if (error) throw error;
   };
 
   const signUp = async (email: string, pass: string) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { error } = await supabase.auth.signUp({ 
-        email, 
-        password: pass,
-        options: {
-            // URL to redirect to after email confirmation
-            emailRedirectTo: window.location.origin
-        }
-    });
+    const { error } = await authService.signUpUser(email, pass);
     if (error) throw error;
   };
 
   const signOut = async () => {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { error } = await supabase.auth.signOut();
+    const { error } = await authService.signOutUser();
     if (error) throw error;
   };
 
   const sendPasswordResetEmail = async (email: string) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}`, 
-    });
+    const { error } = await authService.resetPasswordForEmail(email);
     if (error) throw error;
   };
 
