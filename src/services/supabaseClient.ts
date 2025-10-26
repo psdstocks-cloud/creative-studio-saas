@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { config } from '../config';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+// Use hardcoded config instead of process.env
+const supabaseUrl = config.supabase.url;
+const supabaseAnonKey = config.supabase.anonKey;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-    // This error will be caught during the build process if the environment variables are not set.
-    // For local development, it provides a clear message.
-    throw new Error("Supabase URL and Anon Key must be provided in environment variables.");
+  throw new Error("Supabase credentials are not configured in config.ts");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
