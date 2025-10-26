@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { enhancePrompt } from '../services/geminiService';
 import type { AiJob } from '../types';
@@ -14,28 +13,46 @@ const AiGenerator = () => {
   const { t } = useLanguage();
 
   useEffect(() => {
-    // FIX: Changed NodeJS.Timeout to ReturnType<typeof setInterval> for browser compatibility.
-    let interval: ReturnType<typeof setInterval>;
-    if (job?.status === 'pending') {
-      interval = setInterval(() => {
-        setJob(prev => prev ? ({ ...prev, percentage_complete: Math.min(prev.percentage_complete + 15, 100) }) : null);
-        if (job.percentage_complete >= 100) {
-          setJob(prev => prev ? ({ 
-            ...prev, 
+    // We only want to run the interval if the job is currently pending.
+    if (job?.status !== 'pending') {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      setJob(prevJob => {
+        // Safety check: If the job is cleared or no longer pending while the interval is running, stop updates.
+        if (!prevJob || prevJob.status !== 'pending') {
+          return prevJob;
+        }
+
+        const newPercentage = Math.min(prevJob.percentage_complete + 15, 100);
+        
+        // When progress is complete, update the status.
+        // The change in `job.status` will trigger the useEffect cleanup to clear the interval.
+        if (newPercentage >= 100) {
+          return {
+            ...prevJob,
             status: 'completed',
+            percentage_complete: 100,
             files: [
               { index: 0, thumb_sm: 'https://picsum.photos/200/200?random=1', thumb_lg: 'https://picsum.photos/800/800?random=1', download: 'https://picsum.photos/1600/1600?random=1' },
               { index: 1, thumb_sm: 'https://picsum.photos/200/200?random=2', thumb_lg: 'https://picsum.photos/800/800?random=2', download: 'https://picsum.photos/1600/1600?random=2' },
               { index: 2, thumb_sm: 'https://picsum.photos/200/200?random=3', thumb_lg: 'https://picsum.photos/800/800?random=3', download: 'https://picsum.photos/1600/1600?random=3' },
               { index: 3, thumb_sm: 'https://picsum.photos/200/200?random=4', thumb_lg: 'https://picsum.photos/800/800?random=4', download: 'https://picsum.photos/1600/1600?random=4' },
             ]
-          }) : null);
-          clearInterval(interval);
+          };
         }
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [job]);
+
+        // Otherwise, just update the percentage.
+        return { ...prevJob, percentage_complete: newPercentage };
+      });
+    }, 1000);
+
+    // The cleanup function is crucial. It runs when the component unmounts
+    // or when the dependencies in the dependency array change.
+    return () => clearInterval(intervalId);
+  }, [job?.status, job?._id]); // Depend on status and ID to correctly handle new jobs.
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

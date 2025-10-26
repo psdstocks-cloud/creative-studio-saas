@@ -26,7 +26,13 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
             await signIn(email, password);
             // On successful sign-in, the App component will handle the redirect.
         } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred.');
+            // The default Supabase error for invalid credentials or a bad API key is not user-friendly.
+            // We'll replace it with a generic message.
+            if (err.message && (err.message.includes('Invalid API key') || err.message.includes('Invalid login credentials'))) {
+                setError('Invalid email or password.');
+            } else {
+                setError(err.message || 'An unexpected error occurred.');
+            }
         } finally {
             setIsLoading(false);
         }

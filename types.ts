@@ -1,3 +1,25 @@
+// types for StockDownloader
+export interface StockFileInfo {
+  site: string;
+  id: string;
+  preview: string;
+  cost: number | null;
+}
+
+export interface StockOrder {
+  task_id: string;
+  status: 'processing' | 'ready' | 'error';
+}
+
+// types for SupportedSites
+export interface SupportedSite {
+  key: string;
+  name: string;
+  iconUrl: string;
+  cost: string | number;
+}
+
+// types for AiGenerator
 export interface AiJobFile {
   index: number;
   thumb_sm: string;
@@ -11,33 +33,4 @@ export interface AiJob {
   status: 'pending' | 'completed' | 'failed';
   percentage_complete: number;
   files: AiJobFile[];
-}
-
-export interface StockFileInfo {
-  id: string;
-  site: string;
-  preview: string;
-  cost: number | null;
-}
-
-export interface StockOrder {
-  task_id: string;
-  status: 'pending' | 'ready' | 'failed';
-}
-
-export interface StockDownloadLink {
-    url: string;
-}
-
-export interface SupportedSite {
-  key: string;
-  name: string;
-  cost: number | string | null;
-  iconUrl: string;
-}
-
-export interface User {
-  id: string; // From Supabase Auth
-  email: string;
-  balance: number; // From our 'profiles' table
 }

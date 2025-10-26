@@ -51,15 +51,21 @@ const Sidebar = () => {
             </NavLink>
         ))}
       </nav>
-      <div className="pb-4">
+      <div className="px-4 pb-4 space-y-1">
         {otherItems.map((item) => (
              <button
-             key={item.id}
-             className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-400 hover:bg-gray-700 hover:text-white transition-colors duration-200"
-           >
-             {item.icon}
-             <span className="ms-4">{item.label}</span>
-           </button>
+                key={item.id}
+                disabled
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-500 cursor-not-allowed"
+            >
+                <div className="flex items-center">
+                    {item.icon}
+                    <span className="ms-4">{item.label}</span>
+                </div>
+                <span className="text-xs bg-gray-700 text-gray-400 font-semibold px-2 py-1 rounded-full">
+                    {t('comingSoon')}
+                </span>
+            </button>
         ))}
       </div>
        <div className="px-4 py-3 border-t border-gray-700">

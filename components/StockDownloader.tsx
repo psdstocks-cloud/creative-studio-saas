@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -170,7 +169,7 @@ const StockDownloader = () => {
                 <XMarkIcon className="absolute inset-0 w-full h-full text-red-500" />
             </div>
             <p className="text-red-400 font-semibold mb-6 text-lg">{error}</p>
-            <button onClick={handleStartNew} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors w-full">{t('startAnotherDownload')}</button>
+            <button onClick={handleCloseModal} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors w-full">{t('cancel')}</button>
         </div>
     );
 
