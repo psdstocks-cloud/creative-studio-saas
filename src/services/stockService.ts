@@ -180,8 +180,22 @@ export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
  */
 export const generateDownloadLink = async (taskId: string): Promise<StockDownloadLink> => {
     // Note: API documentation specifies v2 for this endpoint.
-    return apiFetch(`/v2/order/${taskId}/download`);
-}
+    const responseData = await apiFetch(`/v2/order/${taskId}/download`);
+
+    // Defensive parsing: The API response for this endpoint might be inconsistent.
+    // It could be { "url": "..." }, { "data": { "url": "..." } }, or { "data": "..." }.
+    // We need to handle all these cases to extract the final URL string.
+    const data = responseData.data || responseData;
+    const downloadUrl = data.url || data; // Handles both { url: "..." } and the direct URL string.
+
+    // Validate that we have a usable URL before returning.
+    if (typeof downloadUrl !== 'string' || !downloadUrl.startsWith('http')) {
+        console.error('Invalid download link format received from API:', responseData);
+        throw new Error('Could not get a valid download link from the server.');
+    }
+
+    return { url: downloadUrl };
+};
 
 /**
  * Retrieves the list of supported stock media websites and their costs.
