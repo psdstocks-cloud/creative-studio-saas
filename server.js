@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, '')));
 
 // Catch-all handler for single-page application (SPA) routing
 // This sends index.html for any request that doesn't match a static file
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
