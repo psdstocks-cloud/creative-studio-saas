@@ -40,7 +40,7 @@ const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: 
                     onUpdate(order.task_id, 'failed');
                 }
             }
-        }, 5000); // Poll every 5 seconds
+        }, 5000);
 
         return () => clearInterval(interval);
     }, [orders, onUpdate, t]);
@@ -122,7 +122,6 @@ const RecentOrders = ({ orders }: { orders: Order[] }) => {
     );
 };
 
-
 const StockDownloader = () => {
     const { t } = useLanguage();
     const { user, deductPoints } = useAuth();
@@ -162,7 +161,6 @@ const StockDownloader = () => {
     useEffect(() => {
        refreshRecentOrders();
     }, [refreshRecentOrders]);
-
 
     useEffect(() => {
         setUrl('');
@@ -281,6 +279,7 @@ const StockDownloader = () => {
         }
     };
 
+    // ✅ FIXED: Proper async handling with finally block
     const handleGetBatchInfo = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -331,6 +330,7 @@ const StockDownloader = () => {
         } catch (err: any) {
             setError(t('fileFetchError'));
         } finally {
+            // ✅ CRITICAL FIX: Always reset loading state
             setIsFetchingBatch(false);
         }
     };
@@ -554,7 +554,6 @@ const StockDownloader = () => {
                             {totalCost > user.balance && <p className="text-red-500 font-semibold text-sm mt-2">{t('insufficientPoints')}</p>}
                        </div>
                     )}
-
                 </div>
             )}
         </div>
