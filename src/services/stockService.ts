@@ -4,9 +4,9 @@ const API_KEY = 'A8K9bV5s2OX12E8cmS4I96mtmSNzv7';
 const API_BASE_URL = 'https://nehtw.com/api';
 
 /**
- * A helper function to make authenticated API requests to the stock service.
- * It automatically adds the API key header, handles non-OK responses,
- * and includes a timeout to prevent requests from hanging indefinitely.
+ * A hardened helper function to make authenticated API requests to the stock service.
+ * It now includes a guaranteed timeout to prevent requests from hanging indefinitely,
+ * automatically adds the API key header, and handles non-OK responses.
  * @param endpoint The API endpoint to call (e.g., '/stockinfo/shutterstock/123').
  * @param timeout The request timeout in milliseconds. Defaults to 30 seconds.
  * @returns A promise that resolves with the JSON response.
@@ -35,7 +35,9 @@ const apiFetch = async (endpoint: string, timeout = 30000) => {
     }
 
     try {
-      return await response.json();
+      // Handle responses that are successful but have no content to parse
+      const text = await response.text();
+      return text ? JSON.parse(text) : null;
     } catch (error) {
       console.error("Failed to parse API response as JSON", { endpoint, error });
       throw new Error("Received an invalid or empty response from the server.");
@@ -115,19 +117,16 @@ const parsers = [
  */
 const parseStockUrl = (url: string): { site: string; id: string } => {
     try {
-        // Ensure the URL has a protocol for the URL constructor to work correctly.
         const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-        new URL(fullUrl); // This is just to validate that the URL format is generally correct.
+        new URL(fullUrl);
 
         for (const parser of parsers) {
             const match = fullUrl.match(parser.regex);
             if (match && match[1]) {
-                // The API expects 'istockphoto' for images, let's stick to the key from the list.
                 return { site: parser.site, id: match[1] };
             }
         }
     } catch (e) {
-         // This catch block handles errors from `new URL()` for malformed URLs.
          throw new Error('Invalid URL format.');
     }
 
@@ -142,32 +141,30 @@ const parseStockUrl = (url: string): { site: string; id: string } => {
  */
 export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   const { site, id } = parseStockUrl(url);
-  // Per API docs, pass the original, encoded URL as a query parameter.
   const endpoint = `/stockinfo/${site}/${id}?url=${encodeURIComponent(url)}`;
   const responseData = await apiFetch(endpoint);
+
+  if (!responseData) {
+    throw new Error('Received an empty but successful response from the server.');
+  }
   
-  // As per API docs, check for an explicit error response even with a 200 OK status.
   if (responseData.success === false || responseData.error === true) {
       throw new Error(responseData.data || responseData.message || 'The API returned an unspecified error.');
   }
 
-  // Handle cases where the actual data is nested inside a 'data' property.
   const data = responseData.data || responseData;
-
   const costValue = data.cost ?? data.price;
   const previewUrl = data.image || data.preview || data.thumb || data.thumb_lg;
 
-  // Validate the response to prevent showing an empty modal.
   if (!previewUrl || !data.id || !data.source) {
     throw new Error('Could not retrieve valid file details. The API response was incomplete.');
   }
   
-  // Robustly parse the cost, which might be a string or number.
   const parsedCost = parseFloat(costValue);
 
   return {
     id: data.id,
-    site: data.source, // Use 'source' from response as the canonical site name
+    site: data.source,
     preview: previewUrl,
     cost: !isNaN(parsedCost) ? parsedCost : null,
     debugid: data.debugid,
@@ -182,9 +179,6 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
  */
 export const orderStockFile = async (site: string, id: string): Promise<StockOrder> => {
     const responseData = await apiFetch(`/stockorder/${site}/${id}`);
-
-    // The API response for ordering might be nested or contain explicit error flags.
-    // This robustly handles the response to prevent the UI from getting stuck.
     const data = responseData.data || responseData;
 
     if (responseData.success === false || responseData.error === true) {
@@ -215,7 +209,6 @@ export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
  */
 export const generateDownloadLink = async (taskId: string): Promise<StockDownloadLink> => {
     const responseData = await apiFetch(`/v2/order/${taskId}/download`);
-
     const data = responseData.data || responseData;
 
     if (typeof data === 'string' && data.startsWith('http')) {
@@ -223,7 +216,6 @@ export const generateDownloadLink = async (taskId: string): Promise<StockDownloa
     }
 
     if (typeof data === 'object' && data !== null) {
-        // Search through all keys of the object for a valid URL.
         for (const key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
                 const value = data[key];
@@ -243,7 +235,6 @@ export const generateDownloadLink = async (taskId: string): Promise<StockDownloa
  * @returns A promise that resolves to an array of supported sites.
  */
 export const getSupportedSites = async (): Promise<SupportedSite[]> => {
-  // This data is extracted from the provided HTML source for nehtw.com
   const sites = [
     { key: 'adobestock', name: 'adobestock', cost: 0.4, icon: 'adobestock.png' },
     { key: 'pixelbuddha', name: 'pixelbuddha', cost: 0.6, icon: 'pixelbuddha.png' },

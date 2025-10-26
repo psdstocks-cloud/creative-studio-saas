@@ -179,13 +179,12 @@ const StockDownloader = () => {
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
         if (state === 'processing' && order?.task_id) {
-            const taskId = order.task_id; // Capture task_id to prevent it from being lost in stale closures
+            const taskId = order.task_id;
             interval = setInterval(async () => {
                 try {
                     const statusResult = await checkOrderStatus(taskId);
                     if (statusResult.status === 'ready') {
                         await updateOrder(taskId, { status: 'ready' });
-                        // Re-create order object to ensure task_id is preserved, as statusResult might not contain it
                         setOrder({ task_id: taskId, status: 'ready' });
                         setState('ready');
                         clearInterval(interval);
@@ -201,18 +200,17 @@ const StockDownloader = () => {
                     setState('error');
                     clearInterval(interval);
                 }
-            }, 5000); // Poll every 5 seconds
+            }, 5000);
         }
         return () => {
             if (interval) clearInterval(interval);
         };
     }, [state, order, t]);
 
-
     const handleGetInfo = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!url || state === 'fetching') return;
-        
+
         setState('fetching');
         setError(null);
         setSingleFileInfo(null);
@@ -361,66 +359,58 @@ const StockDownloader = () => {
     }, [batchFileInfos, selectedFileIds]);
 
     const handleBatchOrder = async () => {
-        if (!user) return;
-        if (totalCost > user.balance) {
-            setError(t('insufficientPoints'));
-            return;
-        }
-        if (filesToOrder.length === 0) {
-            setError(t('batchSelectError'));
+        if (!user || totalCost > user.balance || filesToOrder.length === 0) {
+            setError(t(totalCost > user.balance ? 'insufficientPoints' : 'batchSelectError'));
             return;
         }
 
         setIsOrderingBatch(true);
         setError(null);
 
-        const orderPromises = filesToOrder.map(file => 
-            orderStockFile(file.site, file.id).then(orderResult => ({
-                file, orderResult, status: 'fulfilled'
-            })).catch(error => ({ file, error, status: 'rejected' }))
-        );
+        try {
+            const orderPromises = filesToOrder.map(file =>
+                orderStockFile(file.site, file.id)
+                    .then(orderResult => ({ file, orderResult, status: 'fulfilled' as const }))
+                    .catch(error => ({ file, error, status: 'rejected' as const }))
+            );
 
-        const results = await Promise.all(orderPromises);
-        
-        let successfulCost = 0;
-        let failedCount = 0;
+            const results = await Promise.all(orderPromises);
+            
+            let successfulCost = 0;
+            let failedCount = 0;
 
-        for (const result of results) {
-            if (result.status === 'fulfilled' && 'orderResult' in result) {
-                try {
-                    await createOrder(user.id, result.orderResult.task_id, result.file);
-                    if (!result.file.isReDownload) {
-                        successfulCost += result.file.cost ?? 0;
+            for (const result of results) {
+                if (result.status === 'fulfilled') {
+                    try {
+                        await createOrder(user.id, result.orderResult.task_id, result.file);
+                        if (!result.file.isReDownload) {
+                            successfulCost += result.file.cost ?? 0;
+                        }
+                    } catch (dbError) {
+                        console.error("Failed to save order to DB:", dbError);
+                        failedCount++;
                     }
-                } catch (dbError) {
-                    console.error("Failed to save order to DB:", dbError);
+                } else {
                     failedCount++;
                 }
-            } else {
-                failedCount++;
             }
-        }
-        
-        try {
+            
             if (successfulCost > 0) {
                 await deductPoints(successfulCost);
             }
-        } catch (deductionError: any) {
-            setError(deductionError.message);
-        }
 
-        if (failedCount > 0) {
-            setError(prevError => {
-                const newError = t('batchOrderError', { count: failedCount });
-                return prevError ? `${prevError}\n${newError}` : newError;
-            });
+            if (failedCount > 0) {
+                setError(t('batchOrderError', { count: failedCount }));
+            }
+        } catch (err: any) {
+            setError(err.message || "An unexpected error occurred during batch order.");
+        } finally {
+            setIsOrderingBatch(false);
+            setBatchUrls('');
+            setBatchFileInfos([]);
+            setSelectedFileIds(new Set());
+            refreshRecentOrders();
         }
-        
-        setBatchUrls('');
-        setBatchFileInfos([]);
-        setSelectedFileIds(new Set());
-        setIsOrderingBatch(false);
-        refreshRecentOrders();
     };
 
     const handleCloseModal = () => {
