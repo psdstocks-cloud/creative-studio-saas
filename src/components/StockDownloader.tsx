@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getStockFileInfo, orderStockFile, checkOrderStatus, generateDownloadLink } from '../services/stockService';
-import { createOrder, updateOrder, findOrderBySiteAndId } from '../services/filesService';
+import { createOrder, updateOrder, findOrderBySiteAndId, getOrders } from '../services/filesService';
 import type { StockFileInfo, StockOrder, Order } from '../types';
 import { LinkIcon, ArrowPathIcon, CheckCircleIcon, XMarkIcon, ExclamationTriangleIcon, ArrowDownTrayIcon } from './icons/Icons';
 import SupportedSites from './SupportedSites';
@@ -11,10 +11,10 @@ type DownloadState = 'idle' | 'fetching' | 'info' | 'ordering' | 'processing' | 
 type Mode = 'single' | 'batch';
 
 interface BatchFileInfo extends StockFileInfo {
-    id: string;
     status: 'success' | 'error';
     error?: string;
     sourceUrl: string;
+    isReDownload?: boolean;
 }
 
 const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void) => {
@@ -86,7 +86,7 @@ const RecentOrders = ({ orders }: { orders: Order[] }) => {
             <h2 className="text-xl font-semibold text-center mb-4">{t('recentOrders')}</h2>
             <div className="space-y-3">
                 {localOrders.map(order => (
-                    <div key={order.task_id} className="p-3 rounded-lg flex items-center justify-between bg-gray-800/80 glassmorphism">
+                    <div key={order.id} className="p-3 rounded-lg flex items-center justify-between bg-gray-800/80 glassmorphism">
                         <div className="flex items-center">
                             <img src={order.file_info.preview} alt="preview" className="w-12 h-12 rounded-md object-cover me-4" />
                             <div>
@@ -149,6 +149,19 @@ const StockDownloader = () => {
         return batchUrls.split('\n').map(u => u.trim()).filter(Boolean).length;
     }, [batchUrls]);
     const hasUrlCountError = currentUrlCount > 5;
+    
+    const refreshRecentOrders = useCallback(() => {
+        if (user?.id) {
+            getOrders(user.id).then(setRecentOrders).catch(err => {
+                 console.error("Failed to refresh recent orders:", err);
+            });
+        }
+    }, [user]);
+
+    useEffect(() => {
+       refreshRecentOrders();
+    }, [refreshRecentOrders]);
+
 
     useEffect(() => {
         setUrl('');
@@ -160,7 +173,6 @@ const StockDownloader = () => {
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
         setError(null);
-        // Do not clear recentOrders on mode switch
     }, [mode]);
 
     useEffect(() => {
@@ -214,11 +226,9 @@ const StockDownloader = () => {
 
         const isReDownload = !!previousOrder;
 
-        // Common logic for both new and re-downloads
         const placeOrderFlow = async () => {
             const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
-            const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo);
-            setRecentOrders(prev => [newOrder, ...prev]);
+            await createOrder(user.id, orderResult.task_id, singleFileInfo);
             setOrder(orderResult);
             setState('processing');
         };
@@ -228,10 +238,8 @@ const StockDownloader = () => {
 
         try {
             if (isReDownload) {
-                // Re-download: just place the order, no point deduction
                 await placeOrderFlow();
             } else {
-                // New download: check balance, deduct points, then place order
                 if (singleFileInfo.cost === null) return;
                 if (user.balance < singleFileInfo.cost) {
                     setError(t('insufficientPoints'));
@@ -244,8 +252,6 @@ const StockDownloader = () => {
         } catch (err: any) {
             setError(err.message || 'Could not place the order.');
             setState('error');
-            // Note: A point refund mechanism might be needed here if deductPoints succeeds but placeOrderFlow fails.
-            // For now, we assume the transaction is atomic from the user's perspective.
         }
     };
     
@@ -280,22 +286,32 @@ const StockDownloader = () => {
         const results = await Promise.allSettled(
             uniqueUrls.map(u => getStockFileInfo(u))
         );
-
-        const fileInfos: BatchFileInfo[] = results.map((result, index) => {
+        
+        const newFileInfos: BatchFileInfo[] = [];
+        for (let i = 0; i < results.length; i++) {
+            const result = results[i];
+            const sourceUrl = uniqueUrls[i];
             if (result.status === 'fulfilled') {
-                return { ...result.value, status: 'success', sourceUrl: uniqueUrls[index] };
+                const info = result.value;
+                const prevOrder = user ? await findOrderBySiteAndId(user.id, info.site, info.id) : null;
+                newFileInfos.push({
+                    ...info,
+                    status: 'success',
+                    sourceUrl,
+                    isReDownload: !!prevOrder
+                });
             } else {
-                return {
-                    id: `error-${index}-${Date.now()}`,
+                newFileInfos.push({
+                    id: `error-${i}-${Date.now()}`,
                     status: 'error',
                     error: (result.reason as Error).message,
-                    sourceUrl: uniqueUrls[index],
+                    sourceUrl,
                     site: '', preview: '', cost: null
-                };
+                });
             }
-        });
+        }
 
-        setBatchFileInfos(fileInfos);
+        setBatchFileInfos(newFileInfos);
         setIsFetchingBatch(false);
     };
 
@@ -313,7 +329,12 @@ const StockDownloader = () => {
 
     const { totalCost, filesToOrder } = useMemo(() => {
         const selectedFiles = batchFileInfos.filter(info => selectedFileIds.has(info.id));
-        const cost = selectedFiles.reduce((sum, info) => sum + (info.cost || 0), 0);
+        const cost = selectedFiles.reduce((sum, info) => {
+             if (info.isReDownload) {
+                return sum;
+            }
+            return sum + (info.cost || 0);
+        }, 0);
         return { totalCost: cost, filesToOrder: selectedFiles };
     }, [batchFileInfos, selectedFileIds]);
 
@@ -339,16 +360,16 @@ const StockDownloader = () => {
 
         const results = await Promise.all(orderPromises);
         
-        const newSuccessfulOrders: Order[] = [];
         let successfulCost = 0;
         let failedCount = 0;
 
         for (const result of results) {
             if (result.status === 'fulfilled' && 'orderResult' in result) {
                 try {
-                    const newOrder = await createOrder(user.id, result.orderResult.task_id, result.file);
-                    newSuccessfulOrders.push(newOrder);
-                    successfulCost += result.file.cost ?? 0;
+                    await createOrder(user.id, result.orderResult.task_id, result.file);
+                    if (!result.file.isReDownload) {
+                        successfulCost += result.file.cost ?? 0;
+                    }
                 } catch (dbError) {
                     console.error("Failed to save order to DB:", dbError);
                     failedCount++;
@@ -373,16 +394,17 @@ const StockDownloader = () => {
             });
         }
         
-        setRecentOrders(prev => [...newSuccessfulOrders, ...prev]);
         setBatchUrls('');
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
         setIsOrderingBatch(false);
+        refreshRecentOrders();
     };
 
     const handleCloseModal = () => {
         setState('idle');
         setError(null);
+        refreshRecentOrders();
     }
 
     const handleStartNew = () => {
@@ -392,6 +414,7 @@ const StockDownloader = () => {
         setSingleFileInfo(null);
         setOrder(null);
         setPreviousOrder(null);
+        refreshRecentOrders();
     }
 
     const renderSingleMode = () => (
@@ -466,10 +489,26 @@ const StockDownloader = () => {
                                 )}
                                 {info.status === 'success' && info.preview ? (
                                     <>
+                                        {info.isReDownload && (
+                                            <div className="absolute top-2 start-2 z-10 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                                {t('free')}
+                                            </div>
+                                        )}
                                         <img src={info.preview} alt="Stock media preview" className="rounded-lg mb-2 w-full h-32 object-cover"/>
                                         <p className="text-xs text-gray-400 truncate" title={info.site}>{info.site}</p>
                                         <p className="font-bold text-blue-400">
-                                            {info.cost !== null ? `${info.cost.toFixed(2)} ${t('points')}` : 'N/A'}
+                                            {info.isReDownload ? (
+                                                <>
+                                                    <span className="line-through text-gray-400 me-2">
+                                                        {info.cost?.toFixed(2)}
+                                                    </span>
+                                                    <span className="text-green-400">
+                                                        {t('free')}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                info.cost !== null ? `${info.cost.toFixed(2)} ${t('points')}` : 'N/A'
+                                            )}
                                         </p>
                                     </>
                                 ) : (
