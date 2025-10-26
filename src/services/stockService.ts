@@ -161,7 +161,22 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
  * @returns A promise resolving to the order details, including a task_id.
  */
 export const orderStockFile = async (site: string, id: string): Promise<StockOrder> => {
-    return apiFetch(`/stockorder/${site}/${id}`);
+    const responseData = await apiFetch(`/stockorder/${site}/${id}`);
+
+    // The API response for ordering might be nested or contain explicit error flags.
+    // This robustly handles the response to prevent the UI from getting stuck.
+    const data = responseData.data || responseData;
+
+    if (responseData.success === false || responseData.error === true) {
+        throw new Error(data.message || data || 'The API returned an error while ordering.');
+    }
+
+    if (!data.task_id) {
+        console.error("Invalid response from orderStockFile, missing task_id:", responseData);
+        throw new Error("Received an invalid response from the server when placing the order.");
+    }
+    
+    return data;
 };
 
 /**
