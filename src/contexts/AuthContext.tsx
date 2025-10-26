@@ -26,44 +26,57 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // onAuthStateChange is the single source of truth for the user's session.
-    // It fires immediately on load with an INITIAL_SESSION event, handling all cases.
+    let mounted = true;
+
+    // Failsafe timeout to ensure the app doesn't get stuck on the loading screen.
+    const timer = setTimeout(() => {
+      if (mounted) {
+        console.warn("Auth provider timed out. Unlocking the UI to prevent being stuck.");
+        setIsLoading(false);
+      }
+    }, 7000);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        let appUser: User | null = null;
-
-        if (session?.user) {
-          // If a session exists, fetch the associated profile to get the balance.
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('balance')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (error) {
-            console.error("Auth: Error fetching user profile:", error.message);
-            // If we can't get profile info, the session is likely invalid (e.g., user deleted).
-            // Treat the user as logged out to prevent app errors.
-            appUser = null; 
-          } else {
-            appUser = {
-              id: session.user.id,
-              email: session.user.email!,
-              balance: profile?.balance ?? 0,
-            };
-          }
-        }
+        if (!mounted) return;
         
-        setUser(appUser);
+        try {
+          if (session?.user) {
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('balance')
+              .eq('id', session.user.id)
+              .single();
 
-        // This is the definitive fix: No matter the outcome (logged in, logged out, or error),
-        // we now know the initial auth state is resolved, so we must stop the loading indicator.
-        setIsLoading(false);
+            if (error) {
+              console.error("AuthProvider: Error fetching user profile:", error.message);
+              setUser(null);
+            } else {
+              const appUser: User = {
+                id: session.user.id,
+                email: session.user.email || 'No email found',
+                balance: profile?.balance ?? 0,
+              };
+              setUser(appUser);
+            }
+          } else {
+            setUser(null);
+          }
+        } catch (e) {
+            console.error("AuthProvider: Unexpected error in onAuthStateChange", e);
+            setUser(null);
+        } finally {
+            clearTimeout(timer);
+            if (mounted) {
+              setIsLoading(false);
+            }
+        }
       }
     );
 
-    // Cleanup the subscription when the component unmounts.
     return () => {
+      mounted = false;
+      clearTimeout(timer);
       subscription.unsubscribe();
     };
   }, []);
