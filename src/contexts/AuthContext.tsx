@@ -26,20 +26,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    setIsLoading(true);
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
+    // Perform a one-time, robust check for the user's session on initial load.
+    const checkUserSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
         if (session?.user) {
-          // User is signed in, now fetch their profile with balance.
           const { data, error } = await supabase
             .from('profiles')
             .select('balance')
             .eq('id', session.user.id)
             .single();
-          
+
           if (error) {
-            console.error("Error fetching user profile:", error.message);
-            // Signing out because we can't get profile info, which is critical.
+            console.error("Error fetching user profile, session may be invalid:", error.message);
+            // If the profile is inaccessible, the session is corrupt or user deleted. Sign out.
             await supabase.auth.signOut();
             setUser(null);
           } else {
@@ -51,10 +52,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setUser(appUser);
           }
         } else {
-          // User is signed out.
           setUser(null);
         }
+      } catch (error) {
+        console.error("Critical error during session check:", error);
+        setUser(null);
+      } finally {
+        // This is crucial: guarantee that the loading state is resolved.
         setIsLoading(false);
+      }
+    };
+
+    checkUserSession();
+
+    // Set up the listener for real-time auth changes (e.g., login, logout in another tab).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, session: Session | null) => {
+        // This listener now only handles state *changes*, not the initial load.
+        if (session?.user) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('balance')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (error) {
+            console.error("Error refreshing profile on auth state change:", error.message);
+            setUser(null);
+          } else {
+            const appUser: User = {
+              id: session.user.id,
+              email: session.user.email!,
+              balance: data?.balance ?? 0,
+            };
+            setUser(appUser);
+          }
+        } else {
+          setUser(null);
+        }
       }
     );
 
@@ -65,9 +100,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
   
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      throw new Error(error.message || "Invalid credentials. Please try again.");
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+     if (error) {
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+         throw new Error(error.message); // Specific error for UI to handle
+      }
+      throw new Error("Invalid credentials. Please try again.");
     }
   }, []);
 
