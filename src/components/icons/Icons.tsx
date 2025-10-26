@@ -113,7 +113,6 @@ export const XMarkIcon = ({ className }: IconProps) => (
     </svg>
 );
 
-// FIX: Add missing XCircleIcon component
 export const XCircleIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>

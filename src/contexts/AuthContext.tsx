@@ -94,30 +94,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const deductPoints = useCallback(async (amount: number) => {
-    // Use a function for setUser to avoid stale state issues.
-    let currentUser: User | null = null;
-    setUser(prevUser => {
-        currentUser = prevUser;
-        return prevUser;
-    });
+    if (!user) throw new Error("User not authenticated");
 
-    if (!currentUser) throw new Error("User not authenticated");
-
-    const newBalance = Math.max(0, currentUser.balance - amount);
+    const newBalance = Math.max(0, user.balance - amount);
     
+    // Update the database first
     const { error } = await supabase
       .from('profiles')
       .update({ balance: newBalance })
-      .eq('id', currentUser.id);
+      .eq('id', user.id);
     
     if (error) {
       console.error("Error updating balance:", error.message);
       throw new Error("Could not deduct points.");
     }
     
+    // Then, update the local state for immediate UI feedback
     setUser(prevUser => prevUser ? { ...prevUser, balance: newBalance } : null);
 
-  }, []);
+  }, [user]);
 
   const sendPasswordResetEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
