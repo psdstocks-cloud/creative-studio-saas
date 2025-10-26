@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "rimraf dist && mkdir -p dist && cp public/index.html dist/index.html && cp public/favicon.svg dist/favicon.svg && tailwindcss -i src/input.css -o dist/output.css --minify && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --define:process.env.API_KEY='\"'$API_KEY'\"' --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' --minify --external:@google/genai --external:@supabase/supabase-js --external:react --external:react/* --external:react-dom/* --external:react-router-dom"
+    "build": "rimraf dist && mkdir -p dist && cp public/index.html dist/index.html && cp public/favicon.svg dist/favicon.svg && cp public/favicon.ico dist/favicon.ico && tailwindcss -i src/input.css -o dist/output.css --minify && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --define:process.env.API_KEY='\"'$API_KEY'\"' --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' --minify --external:@google/genai --external:@supabase/supabase-js --external:react --external:react/* --external:react-dom/* --external:react-router-dom"
   },
   "dependencies": {
     "react": "^19.2.0",
