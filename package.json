@@ -12,7 +12,10 @@
     "react": "^19.2.0",
     "react-router-dom": "^7.9.4",
     "react-dom": "^19.2.0",
-    "@google/genai": "^1.27.0"
+    "@google/genai": "^1.27.0",
+    "express": "^5.1.0",
+    "path": "^0.12.7",
+    "url": "^0.11.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
