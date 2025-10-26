@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "rimraf dist && mkdir -p dist && cp public/index.html dist/index.html && cp public/favicon.svg dist/favicon.svg && cp public/favicon.ico dist/favicon.ico && cp serve.json dist/ && tailwindcss -i src/input.css -o dist/output.css --minify && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --define:process.env.API_KEY='\"'$API_KEY'\"' --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' --minify",
+    "build": "rimraf dist && mkdir -p dist && cp public/index.html dist/index.html && cp public/favicon.svg dist/favicon.svg && cp public/favicon.ico dist/favicon.ico && tailwindcss -i src/input.css -o dist/output.css --minify && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --define:process.env.API_KEY='\"'$API_KEY'\"' --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' --minify",
     "dev": "tailwindcss -i src/input.css -o dist/output.css && esbuild src/index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --servedir=. --watch",
-    "start": "serve -s dist -l ${PORT:-3000}"
+    "start": "node server.js"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -13,7 +13,7 @@
     "react-router-dom": "^6.28.0",
     "@supabase/supabase-js": "^2.45.0",
     "@google/generative-ai": "^0.21.0",
-    "serve": "^14.2.3"
+    "express": "^4.18.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
