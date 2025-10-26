@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { config } from './config';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -12,10 +13,7 @@ if (!rootElement) {
 
 const root = ReactDOM.createRoot(rootElement);
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!config.supabase.isAvailable) {
   root.render(
     <React.StrictMode>
       <div className="flex h-screen w-screen items-center justify-center bg-gray-900 text-white text-center p-8">
