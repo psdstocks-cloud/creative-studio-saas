@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '../types';
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
@@ -25,61 +25,64 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const getAppUserFromSession = useCallback(async (session: Session | null): Promise<User | null> => {
+    if (!session?.user) {
+        return null;
+    }
+    
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', session.user.id)
+        .single();
+    
+    if (profileError) {
+        console.error("AuthProvider: Error fetching user profile:", profileError.message);
+        return null;
+    }
+    
+    return {
+        id: session.user.id,
+        email: session.user.email || 'No email found',
+        balance: profile?.balance ?? 0,
+    };
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
-    // Failsafe timeout to ensure the app doesn't get stuck on the loading screen.
-    const timer = setTimeout(() => {
-      if (mounted) {
-        console.warn("Auth provider timed out. Unlocking the UI to prevent being stuck.");
-        setIsLoading(false);
-      }
-    }, 7000);
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
-        if (!mounted) return;
-        
+    async function initializeAuth() {
         try {
-          if (session?.user) {
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('balance')
-              .eq('id', session.user.id)
-              .single();
-
-            if (error) {
-              console.error("AuthProvider: Error fetching user profile:", error.message);
-              setUser(null);
-            } else {
-              const appUser: User = {
-                id: session.user.id,
-                email: session.user.email || 'No email found',
-                balance: profile?.balance ?? 0,
-              };
-              setUser(appUser);
-            }
-          } else {
-            setUser(null);
-          }
-        } catch (e) {
-            console.error("AuthProvider: Unexpected error in onAuthStateChange", e);
-            setUser(null);
-        } finally {
-            clearTimeout(timer);
+            const { data: { session } } = await supabase.auth.getSession();
             if (mounted) {
-              setIsLoading(false);
+                const appUser = await getAppUserFromSession(session);
+                setUser(appUser);
+            }
+        } catch (e) {
+            console.error("AuthProvider: Error initializing auth", e);
+        } finally {
+            if (mounted) {
+                setIsLoading(false);
             }
         }
-      }
+    }
+    
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (_event, session) => {
+            if (mounted) {
+                const appUser = await getAppUserFromSession(session);
+                setUser(appUser);
+            }
+        }
     );
 
     return () => {
-      mounted = false;
-      clearTimeout(timer);
-      subscription.unsubscribe();
+        mounted = false;
+        subscription.unsubscribe();
     };
-  }, []);
+  }, [getAppUserFromSession]);
   
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
