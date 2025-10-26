@@ -12,7 +12,6 @@ interface AuthContextType {
   signOut: () => void;
   deductPoints: (amount: number) => Promise<void>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
-  // FIX: Add resendConfirmationEmail to the context type to be used in the SignIn component.
   resendConfirmationEmail: (email: string) => Promise<void>;
 }
 
@@ -165,7 +164,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return Promise.resolve();
   }, []);
 
-  // FIX: Implement the resendConfirmationEmail function using Supabase auth.
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resend({
       type: 'signup',
