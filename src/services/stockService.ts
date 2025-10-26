@@ -1,3 +1,4 @@
+
 import type { StockFileInfo, StockOrder, StockDownloadLink, SupportedSite } from '../types';
 
 const API_KEY = 'A8K9bV5s2OX12E8cmS4I96mtmSNzv7';
@@ -195,7 +196,6 @@ export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
  */
 export const generateDownloadLink = async (taskId: string): Promise<StockDownloadLink> => {
     const responseData = await apiFetch(`/v2/order/${taskId}/download`);
-    console.log('Download link API response:', responseData);
 
     const data = responseData.data || responseData;
 
@@ -215,7 +215,6 @@ export const generateDownloadLink = async (taskId: string): Promise<StockDownloa
         }
     }
 
-    console.error('Could not extract a valid download URL from the API response:', responseData);
     throw new Error('Could not get a valid download link from the server. The response format was unexpected.');
 };
 

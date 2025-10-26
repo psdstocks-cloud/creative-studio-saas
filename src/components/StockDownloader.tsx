@@ -144,6 +144,7 @@ const StockDownloader = () => {
     
     const [error, setError] = useState<string | null>(null);
     const isModalOpen = state !== 'idle' && state !== 'fetching';
+    const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
     const currentUrlCount = useMemo(() => {
         return batchUrls.split('\n').map(u => u.trim()).filter(Boolean).length;
@@ -178,20 +179,29 @@ const StockDownloader = () => {
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
         if (state === 'processing' && order?.task_id) {
+            const taskId = order.task_id; // Capture task_id to prevent it from being lost in stale closures
             interval = setInterval(async () => {
                 try {
-                    const statusResult = await checkOrderStatus(order.task_id);
+                    const statusResult = await checkOrderStatus(taskId);
                     if (statusResult.status === 'ready') {
-                        setOrder(statusResult);
+                        await updateOrder(taskId, { status: 'ready' });
+                        // Re-create order object to ensure task_id is preserved, as statusResult might not contain it
+                        setOrder({ task_id: taskId, status: 'ready' });
                         setState('ready');
+                        clearInterval(interval);
+                    } else if (statusResult.status === 'failed') {
+                        await updateOrder(taskId, { status: 'failed' });
+                        setOrder({ task_id: taskId, status: 'failed' });
+                        setError(t('fileProcessingFailedError'));
+                        setState('error');
                         clearInterval(interval);
                     }
                 } catch (err) {
-                    setError(t('insufficientPoints'));
+                    setError(t('orderStatusError'));
                     setState('error');
                     clearInterval(interval);
                 }
-            }, 3000);
+            }, 5000); // Poll every 5 seconds
         }
         return () => {
             if (interval) clearInterval(interval);
@@ -257,14 +267,17 @@ const StockDownloader = () => {
     
     const handleDownload = async () => {
         if (!order?.task_id) return;
+        setIsGeneratingLink(true);
         try {
             const { url: downloadUrl } = await generateDownloadLink(order.task_id);
             window.open(downloadUrl, '_blank');
-        } catch(err) {
+        } catch (err) {
             setError('Could not generate download link.');
             setState('error');
+        } finally {
+            setIsGeneratingLink(false);
         }
-    }
+    };
 
     const handleGetBatchInfo = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -618,7 +631,14 @@ const StockDownloader = () => {
                         <p className="text-gray-400 mb-6">{t('fileReadyDesc')}</p>
                         <div className="flex justify-center space-x-4 rtl:space-x-reverse w-full">
                             <button onClick={handleStartNew} className="w-full bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg hover:bg-gray-500 transition-colors">{t('startAnotherDownload')}</button>
-                            <button onClick={handleDownload} className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors">{t('downloadNow')}</button>
+                            <button 
+                                onClick={handleDownload}
+                                disabled={isGeneratingLink}
+                                className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center disabled:bg-blue-400 disabled:cursor-wait"
+                            >
+                                {isGeneratingLink ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : <ArrowDownTrayIcon className="w-5 h-5 me-2" />}
+                                {isGeneratingLink ? t('generating') : t('downloadNow')}
+                            </button>
                         </div>
                     </div>
                 )
