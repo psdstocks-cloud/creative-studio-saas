@@ -6,13 +6,14 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "build": "rimraf dist && mkdir dist && esbuild index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --minify && cp index.html styles.css favicon.svg dist/"
+    "build": "rimraf dist && mkdir dist && esbuild index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --minify --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' && cp index.html styles.css favicon.svg dist/"
   },
   "devDependencies": {
     "esbuild": "^0.20.2",
     "rimraf": "^5.0.5"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.43.4",
     "express": "^4.19.2"
   }
 }

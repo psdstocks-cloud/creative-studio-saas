@@ -1,5 +1,8 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
+import { supabase } from '../services/supabaseClient';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
+// This interface defines the user object used throughout the app.
 interface User {
   id: string;
   email: string;
@@ -19,78 +22,124 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data and authentication logic
-const MOCK_USER: User = {
-    id: 'user-123',
-    email: 'test@example.com',
-    balance: 1000.00
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Simulate checking for an existing session on app load
-  useEffect(() => {
-    const session = sessionStorage.getItem('mock-auth-session');
-    if (session) {
-      setUser(MOCK_USER);
+  // Fetches extended user profile data (e.g., balance) from a 'profiles' table in Supabase.
+  const fetchUserProfile = useCallback(async (supabaseUser: SupabaseUser): Promise<User | null> => {
+    if (!supabase) return null; // Guard against uninitialized client
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', supabaseUser.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        // If profile doesn't exist, we can still create a user object with default balance.
+        return {
+          id: supabaseUser.id,
+          email: supabaseUser.email!,
+          balance: 0,
+        };
+      }
+
+      return {
+        id: supabaseUser.id,
+        email: supabaseUser.email!,
+        balance: data.balance || 0,
+      };
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+      return null;
     }
-    setTimeout(() => setIsLoading(false), 500); // Simulate loading delay
   }, []);
 
-  const signIn = async (email: string, pass: string): Promise<void> => {
-    console.log('Signing in with:', email, pass);
-    setIsLoading(true);
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        // Simple mock validation
-        if (email === MOCK_USER.email && pass === 'password') {
-          setUser(MOCK_USER);
-          sessionStorage.setItem('mock-auth-session', 'true');
-          setIsLoading(false);
-          resolve();
+  // Effect to check for an active session on mount and listen for auth state changes.
+  useEffect(() => {
+    // If the Supabase client is not initialized, we can't do anything.
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const profile = await fetchUserProfile(session.user);
+        setUser(profile);
+      }
+      setIsLoading(false);
+    };
+    getSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user);
+          setUser(profile);
         } else {
-          setIsLoading(false);
-          reject(new Error('Invalid email or password.'));
+          setUser(null);
         }
-      }, 1000);
+        if (isLoading) setIsLoading(false);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [fetchUserProfile, isLoading]);
+
+  const signIn = async (email: string, pass: string) => {
+    if (!supabase) throw new Error("Supabase is not configured.");
+    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+  };
+
+  const signUp = async (email: string, pass: string) => {
+    if (!supabase) throw new Error("Supabase is not configured.");
+    const { error } = await supabase.auth.signUp({ 
+        email, 
+        password: pass,
+        options: {
+            // URL to redirect to after email confirmation
+            emailRedirectTo: window.location.origin
+        }
     });
+    if (error) throw error;
   };
 
-  const signUp = async (email: string, pass: string): Promise<void> => {
-    console.log('Signing up with:', email, pass);
-    setIsLoading(true);
-    // In a real app, this would call an API, and the user would need to confirm their email.
-    // For this mock, we just show a success message in the component.
-    return new Promise(resolve => {
-        setTimeout(() => {
-            setIsLoading(false);
-            resolve();
-        }, 1000);
+  const signOut = async () => {
+    if (!supabase) throw new Error("Supabase is not configured.");
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  };
+
+  const sendPasswordResetEmail = async (email: string) => {
+    if (!supabase) throw new Error("Supabase is not configured.");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}`, 
     });
+    if (error) throw error;
   };
 
-  const signOut = async (): Promise<void> => {
-    setUser(null);
-    sessionStorage.removeItem('mock-auth-session');
-  };
-
-  const sendPasswordResetEmail = async (email: string): Promise<void> => {
-    console.log('Sending password reset to:', email);
-    // Don't throw an error to prevent email enumeration
-    return Promise.resolve();
-  };
-  
   const deductPoints = useCallback(async (amount: number): Promise<void> => {
     setUser(currentUser => {
         if (!currentUser || currentUser.balance < amount) {
             throw new Error('Insufficient points.');
         }
-        return { ...currentUser, balance: currentUser.balance - amount };
+        const newBalance = currentUser.balance - amount;
+
+        // TODO: In a real app, this update should be done securely via a Supabase Edge Function
+        // to prevent client-side manipulation. For this demo, we only update the local state.
+        // Example: await supabase.rpc('deduct_points', { amount_to_deduct: amount });
+        
+        console.log(`Deducting ${amount} points. New balance (local state): ${newBalance}`);
+        return { ...currentUser, balance: newBalance };
     });
   }, []);
-
 
   const value = {
     user,
