@@ -26,74 +26,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Perform a one-time, robust check for the user's session on initial load.
-    const checkUserSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('balance')
-            .eq('id', session.user.id)
-            .single();
-
-          if (error) {
-            console.error("Error fetching user profile, session may be invalid:", error.message);
-            // If the profile is inaccessible, the session is corrupt or user deleted. Sign out.
-            await supabase.auth.signOut();
-            setUser(null);
-          } else {
-            const appUser: User = {
-              id: session.user.id,
-              email: session.user.email!,
-              balance: data?.balance ?? 0,
-            };
-            setUser(appUser);
-          }
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error("Critical error during session check:", error);
-        setUser(null);
-      } finally {
-        // This is crucial: guarantee that the loading state is resolved.
-        setIsLoading(false);
-      }
-    };
-
-    checkUserSession();
-
-    // Set up the listener for real-time auth changes (e.g., login, logout in another tab).
+    // onAuthStateChange is the single source of truth for the user's session.
+    // It fires immediately on load with an INITIAL_SESSION event, handling all cases.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        // This listener now only handles state *changes*, not the initial load.
+        let appUser: User | null = null;
+
         if (session?.user) {
-          const { data, error } = await supabase
+          // If a session exists, fetch the associated profile to get the balance.
+          const { data: profile, error } = await supabase
             .from('profiles')
             .select('balance')
             .eq('id', session.user.id)
             .single();
           
           if (error) {
-            console.error("Error refreshing profile on auth state change:", error.message);
-            setUser(null);
+            console.error("Auth: Error fetching user profile:", error.message);
+            // If we can't get profile info, the session is likely invalid (e.g., user deleted).
+            // Treat the user as logged out to prevent app errors.
+            appUser = null; 
           } else {
-            const appUser: User = {
+            appUser = {
               id: session.user.id,
               email: session.user.email!,
-              balance: data?.balance ?? 0,
+              balance: profile?.balance ?? 0,
             };
-            setUser(appUser);
           }
-        } else {
-          setUser(null);
         }
+        
+        setUser(appUser);
+
+        // This is the definitive fix: No matter the outcome (logged in, logged out, or error),
+        // we now know the initial auth state is resolved, so we must stop the loading indicator.
+        setIsLoading(false);
       }
     );
 
-    // Cleanup subscription on unmount
+    // Cleanup the subscription when the component unmounts.
     return () => {
       subscription.unsubscribe();
     };
@@ -107,8 +76,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string): Promise<void> => {
-    // Sign up the user in the 'auth' schema.
-    // A database trigger (configured in Supabase) will automatically create their corresponding profile.
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -117,9 +84,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (error) {
       throw new Error(error.message || 'Could not sign up user.');
     }
-
-    // Note: By default, Supabase may require email confirmation. The onAuthStateChange
-    // listener will set the user session only after they've confirmed their email.
   }, []);
 
   const signOut = useCallback(async () => {
@@ -130,37 +94,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const deductPoints = useCallback(async (amount: number) => {
-    if (!user) throw new Error("User not authenticated");
+    // Use a function for setUser to avoid stale state issues.
+    let currentUser: User | null = null;
+    setUser(prevUser => {
+        currentUser = prevUser;
+        return prevUser;
+    });
 
-    const newBalance = Math.max(0, user.balance - amount);
+    if (!currentUser) throw new Error("User not authenticated");
+
+    const newBalance = Math.max(0, currentUser.balance - amount);
     
-    // Update the database first
     const { error } = await supabase
       .from('profiles')
       .update({ balance: newBalance })
-      .eq('id', user.id);
+      .eq('id', currentUser.id);
     
     if (error) {
       console.error("Error updating balance:", error.message);
       throw new Error("Could not deduct points.");
     }
     
-    // Then, update the local state for immediate UI feedback
-    setUser({ ...user, balance: newBalance });
+    setUser(prevUser => prevUser ? { ...prevUser, balance: newBalance } : null);
 
-  }, [user]);
+  }, []);
 
   const sendPasswordResetEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        // IMPORTANT: You must configure this URL in your Supabase project's email templates.
         redirectTo: `${window.location.origin}/auth/callback`,
     });
     if (error) {
-        // We don't throw an error to the user to prevent email enumeration.
-        // We just log it for debugging.
         console.error('Password reset error:', error.message);
     }
-    // Always resolve successfully from the user's perspective.
     return Promise.resolve();
   }, []);
 
