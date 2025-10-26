@@ -5,13 +5,14 @@ const API_BASE_URL = 'https://nehtw.com/api';
 interface ApiFetchOptions extends RequestInit {
   timeout?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  body?: any; // Allow any body type for JSON.stringify
+  body?: any; // Allow any body type for processing
 }
 
 /**
  * A shared, hardened helper function to make authenticated API requests.
  * It includes a guaranteed timeout, automatically adds the API key,
  * handles JSON body serialization, and provides consistent error handling.
+ * For GET requests, it converts the body into URL search parameters.
  * @param endpoint The API endpoint to call (e.g., '/stockinfo/shutterstock/123').
  * @param options The request options, including method, body, and timeout.
  * @returns A promise that resolves with the JSON response.
@@ -21,6 +22,8 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  let finalEndpoint = endpoint;
 
   const headers: HeadersInit = {
     'X-Api-Key': API_KEY,
@@ -32,14 +35,23 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
     headers,
     signal: controller.signal,
   };
+  
+  const method = (config.method || 'GET').toUpperCase();
 
   if (body) {
-    headers['Content-Type'] = 'application/json';
-    config.body = JSON.stringify(body);
+    if (method === 'GET' || method === 'HEAD') {
+      // For GET requests, convert body object to URL query parameters
+      const params = new URLSearchParams(body);
+      finalEndpoint += `?${params.toString()}`;
+    } else {
+      // For other methods (POST, PUT, etc.), use a JSON body
+      headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(body);
+    }
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    const response = await fetch(`${API_BASE_URL}${finalEndpoint}`, config);
 
     if (!response.ok) {
       let errorMessage = `API Error: ${response.status} ${response.statusText}`;

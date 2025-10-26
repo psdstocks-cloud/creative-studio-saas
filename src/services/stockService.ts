@@ -2,13 +2,13 @@
 import { apiFetch } from './api';
 import type { StockFileInfo, StockOrder, StockDownloadLink, SupportedSite } from '../types';
 
-
 /**
  * A comprehensive list of parsers to extract site and ID from various stock media URLs.
  * Based on the API's backend logic.
  */
 const parsers = [
     // Shutterstock (ordered from most to least specific)
+    // FIX: Changed greedy `*` to optional `?` to prevent it from consuming the content type path segment.
     { site: 'vshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?video\/clip-([0-9]+)/i },
     { site: 'mshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?music\/track-([0-9]+)/i },
     { site: 'shutterstock', regex: /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/[a-zA-Z0-9-]+-([0-9]+)/i },
@@ -67,16 +67,19 @@ const parsers = [
  */
 const parseStockUrl = (url: string): { site: string; id: string } => {
     try {
+        // Ensure the URL has a protocol for the URL constructor to work correctly.
         const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-        new URL(fullUrl);
+        new URL(fullUrl); // This is just to validate that the URL format is generally correct.
 
         for (const parser of parsers) {
             const match = fullUrl.match(parser.regex);
             if (match && match[1]) {
+                // The API expects 'istockphoto' for images, let's stick to the key from the list.
                 return { site: parser.site, id: match[1] };
             }
         }
     } catch (e) {
+         // This catch block handles errors from `new URL()` for malformed URLs.
          throw new Error('Invalid URL format.');
     }
 
@@ -91,38 +94,34 @@ const parseStockUrl = (url: string): { site: string; id: string } => {
  */
 export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   const { site, id } = parseStockUrl(url);
-  const endpoint = `/stockinfo/${site}/${id}?url=${encodeURIComponent(url)}`;
-  const responseData = await apiFetch(endpoint);
+  const responseData = await apiFetch(`/stockinfo/${site}/${id}`);
 
-  if (!responseData) {
-    throw new Error('Received an empty but successful response from the server.');
-  }
-  
-  if (responseData.success === false || responseData.error === true) {
-      throw new Error(responseData.data || responseData.message || 'The API returned an unspecified error.');
-  }
-
+  // Handle cases where the actual data is nested inside a 'data' property.
   const data = responseData.data || responseData;
-  const costValue = data.cost ?? data.price;
-  const previewUrl = data.image || data.preview || data.thumb || data.thumb_lg;
 
-  if (!previewUrl || !data.id || !data.source) {
-    throw new Error('Could not retrieve valid file details. The API response was incomplete.');
+  const costValue = data.cost ?? data.price;
+  const previewUrl = data.preview || data.thumb || data.thumb_lg;
+
+  // Validate the response to prevent showing an empty modal.
+  if (!previewUrl || !data.id) {
+    throw new Error(responseData.message || 'Could not retrieve file details. The URL might be incorrect or the file is unavailable.');
   }
   
+  // Robustly parse the cost, which might be a string or number.
   const parsedCost = parseFloat(costValue);
 
+  // FIX: Extract additional file details from the API response.
   return {
     id: data.id,
-    site: data.source,
+    site: data.site,
     preview: previewUrl,
     cost: !isNaN(parsedCost) ? parsedCost : null,
-    debugid: data.debugid,
     title: data.title,
     name: data.name,
-    ext: data.ext,
     author: data.author,
-    sizeInBytes: data.sizeInBytes,
+    ext: data.ext,
+    sizeInBytes: data.size_in_bytes,
+    debugid: data.debugid,
   };
 };
 
@@ -133,19 +132,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
  * @returns A promise resolving to the order details, including a task_id.
  */
 export const orderStockFile = async (site: string, id: string): Promise<StockOrder> => {
-    const responseData = await apiFetch(`/stockorder/${site}/${id}`);
-    const data = responseData.data || responseData;
-
-    if (responseData.success === false || responseData.error === true) {
-        throw new Error(data.message || data || 'The API returned an error while ordering.');
-    }
-
-    if (!data.task_id) {
-        console.error("Invalid response from orderStockFile, missing task_id:", responseData);
-        throw new Error("Received an invalid response from the server when placing the order.");
-    }
-    
-    return data;
+    return apiFetch(`/stockorder/${site}/${id}`);
 };
 
 /**
@@ -163,33 +150,16 @@ export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
  * @returns A promise resolving to an object containing the download URL.
  */
 export const generateDownloadLink = async (taskId: string): Promise<StockDownloadLink> => {
-    const responseData = await apiFetch(`/v2/order/${taskId}/download`);
-    const data = responseData.data || responseData;
-
-    if (typeof data === 'string' && data.startsWith('http')) {
-        return { url: data };
-    }
-
-    if (typeof data === 'object' && data !== null) {
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                const value = data[key];
-                if (typeof value === 'string' && value.startsWith('http')) {
-                    return { url: value };
-                }
-            }
-        }
-    }
-
-    throw new Error('Could not get a valid download link from the server. The response format was unexpected.');
-};
-
+    // Note: API documentation specifies v2 for this endpoint.
+    return apiFetch(`/v2/order/${taskId}/download`);
+}
 
 /**
  * Retrieves the list of supported stock media websites and their costs.
- * @returns A promise that resolves to an array of supported sites.
+ * @returns A promise resolving to an array of supported sites.
  */
 export const getSupportedSites = async (): Promise<SupportedSite[]> => {
+  // This data is extracted from the provided HTML source for nehtw.com
   const sites = [
     { key: 'adobestock', name: 'adobestock', cost: 0.4, icon: 'adobestock.png' },
     { key: 'pixelbuddha', name: 'pixelbuddha', cost: 0.6, icon: 'pixelbuddha.png' },

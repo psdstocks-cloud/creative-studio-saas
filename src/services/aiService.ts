@@ -1,3 +1,4 @@
+
 import { apiFetch } from './api';
 import type { AiJob } from '../types';
 
@@ -13,7 +14,8 @@ interface CreateJobResponse {
  * @returns A promise resolving to the new job's details.
  */
 export const createAiJob = async (prompt: string): Promise<CreateJobResponse> => {
-    // This API uses a non-standard GET request with a body to create a job.
+    // This API uses a non-standard GET request and expects data in the query string.
+    // The shared apiFetch utility handles converting the body to query params.
     return apiFetch('/aig/create', {
         method: 'GET',
         body: { prompt },
@@ -33,6 +35,7 @@ export const pollAiJob = async (getResultUrl: string): Promise<AiJob> => {
 
     try {
         const response = await fetch(getResultUrl, {
+            // The API key is still required for the absolute URL endpoint.
             headers: { 'X-Api-Key': 'A8K9bV5s2OX12E8cmS4I96mtmSNzv7' },
             signal: controller.signal,
         });
@@ -66,7 +69,7 @@ export const pollAiJob = async (getResultUrl: string): Promise<AiJob> => {
  * @returns A promise resolving to the new variation/upscale job's details.
  */
 export const performAiAction = async (jobId: string, action: 'vary' | 'upscale', index: number): Promise<CreateJobResponse> => {
-    // This API uses a non-standard GET request with a body to create an action job.
+    // This API also uses a non-standard GET request with query params.
     return apiFetch('/aig/actions', {
         method: 'GET',
         body: { job_id: jobId, action, index },

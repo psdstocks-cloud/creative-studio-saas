@@ -20,16 +20,10 @@ const AiGenerator = () => {
 
   const handleJobUpdate = useCallback((polledJob: AiJob) => {
     setJob(prevJob => {
-        // The polled job is the most current source of truth
         if (!prevJob || polledJob._id !== prevJob._id) return polledJob;
-
-        return {
-            ...prevJob,
-            ...polledJob
-        };
+        return { ...prevJob, ...polledJob };
     });
   }, []);
-
 
   useEffect(() => {
     if (!job?.get_result_url || job.status === 'completed' || job.status === 'failed') {
@@ -40,24 +34,25 @@ const AiGenerator = () => {
       try {
         const polledJob = await pollAiJob(job.get_result_url!);
         handleJobUpdate(polledJob);
+        if (polledJob.status === 'completed' || polledJob.status === 'failed') {
+            clearInterval(interval);
+        }
       } catch (err: any) {
         console.error("Polling failed:", err);
-        // Stop polling on error to avoid repeated failures
         setJob(prev => prev ? ({ ...prev, status: 'failed', error_message: err.message }) : null);
+        clearInterval(interval);
       }
-    }, 3000); // Poll every 3 seconds
+    }, 3000);
 
     return () => clearInterval(interval);
-
   }, [job, handleJobUpdate]);
 
-  const startNewJob = async (jobCreationFunc: () => Promise<{ job_id: string; get_result_url: string }>) => {
-    setIsLoading(true);
+  const startNewJob = async (jobCreationFunc: () => Promise<{ job_id: string; get_result_url: string }>, currentPrompt: string, cost: number = 0) => {
     setJob(null);
     setError(null);
-
+    
     try {
-        if (user && job && job.cost && user.balance < job.cost) {
+        if (user && cost > 0 && user.balance < cost) {
             setError(t('insufficientPoints'));
             setIsLoading(false);
             return;
@@ -65,11 +60,9 @@ const AiGenerator = () => {
 
         const { job_id, get_result_url } = await jobCreationFunc();
         
-        // The API doesn't return the full job object on creation, so we create a shell
-        // and let the polling mechanism fill it in.
         const initialJob: AiJob = {
             _id: job_id,
-            prompt: prompt, // Use the current prompt as a placeholder
+            prompt: currentPrompt,
             status: 'pending',
             percentage_complete: 0,
             files: [],
@@ -77,19 +70,14 @@ const AiGenerator = () => {
         };
         setJob(initialJob);
 
-        // Deduct points after successfully creating the job
-        if (job && job.cost) {
-            await deductPoints(job.cost);
+        if (cost > 0) {
+            await deductPoints(cost);
         }
-
     } catch (err: any) {
         setError(err.message);
         setJob(null);
-    } finally {
-        setIsLoading(false);
     }
   };
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,28 +85,24 @@ const AiGenerator = () => {
 
     setIsLoading(true);
     const finalPrompt = await enhancePrompt(prompt, isThinkingMode);
-    setIsLoading(false); // Done enhancing
-    
-    // Update prompt in textarea to show user the enhanced version
     setPrompt(finalPrompt);
-
-    await startNewJob(() => createAiJob(finalPrompt));
+    
+    await startNewJob(() => createAiJob(finalPrompt), finalPrompt, 1); // Assuming a cost of 1 point
+    setIsLoading(false);
   };
   
   const handleAction = async (action: 'vary' | 'upscale', index: number) => {
     if (!job) return;
+    
     setActionStates(prev => ({ ...prev, [index]: true }));
-    setError(null);
-
-    try {
-        await startNewJob(() => performAiAction(job._id, action, index));
-    } catch (err: any) {
-        setError(t('aiActionError'));
-    } finally {
-        setActionStates(prev => ({ ...prev, [index]: false }));
-    }
+    // Reset main loading state for a new job flow
+    setIsLoading(true); 
+    
+    await startNewJob(() => performAiAction(job._id, action, index), job.prompt, 0.5); // Assuming lower cost for actions
+    
+    setIsLoading(false);
+    setActionStates(prev => ({ ...prev, [index]: false }));
   };
-
 
   const handleReset = () => {
     setPrompt('');
@@ -127,6 +111,8 @@ const AiGenerator = () => {
     setIsLoading(false);
   }
 
+  const isAnyActionLoading = Object.values(actionStates).some(state => state);
+
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">{t('aiGeneratorTitle')}</h1>
@@ -134,31 +120,31 @@ const AiGenerator = () => {
         
         {!job && (
             <form onSubmit={handleSubmit}>
-            <textarea
-                value={prompt}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPrompt(e.target.value)}
-                placeholder={t('promptPlaceholder')}
-                className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-none h-28"
-            />
-            <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center">
-                <label htmlFor="thinking-mode" className="flex items-center cursor-pointer">
-                    <div className="relative">
-                    <input type="checkbox" id="thinking-mode" className="sr-only" checked={isThinkingMode} onChange={() => setIsThinkingMode(!isThinkingMode)} />
-                    <div className={`block w-14 h-8 rounded-full ${isThinkingMode ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
-                    <div className={`dot absolute start-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${isThinkingMode ? 'ltr:translate-x-6 rtl:-translate-x-6' : ''}`}></div>
-                    </div>
-                    <div className="ms-3 text-gray-700 dark:text-gray-300 font-medium flex items-center">
-                    <CpuChipIcon />
-                    <span className="ms-2">{t('thinkingMode')}</span>
-                    </div>
-                </label>
-                </div>
-                <button type="submit" disabled={isLoading} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors flex items-center">
-                {isLoading ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : <SparklesIcon className="-ms-1 me-2 h-5 w-5" />}
-                {isLoading ? t('enhancing') : t('generate')}
-                </button>
-            </div>
+              <textarea
+                  value={prompt}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPrompt(e.target.value)}
+                  placeholder={t('promptPlaceholder')}
+                  className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-none h-28"
+              />
+              <div className="flex items-center justify-between mt-4">
+                  <div className="flex items-center">
+                    <label htmlFor="thinking-mode" className="flex items-center cursor-pointer">
+                        <div className="relative">
+                          <input type="checkbox" id="thinking-mode" className="sr-only" checked={isThinkingMode} onChange={() => setIsThinkingMode(!isThinkingMode)} />
+                          <div className={`block w-14 h-8 rounded-full ${isThinkingMode ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                          <div className={`dot absolute start-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${isThinkingMode ? 'ltr:translate-x-6 rtl:-translate-x-6' : ''}`}></div>
+                        </div>
+                        <div className="ms-3 text-gray-700 dark:text-gray-300 font-medium flex items-center">
+                          <CpuChipIcon />
+                          <span className="ms-2">{t('thinkingMode')}</span>
+                        </div>
+                    </label>
+                  </div>
+                  <button type="submit" disabled={isLoading} className="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors flex items-center">
+                    {isLoading ? <ArrowPathIcon className="animate-spin -ms-1 me-2 h-5 w-5" /> : <SparklesIcon className="-ms-1 me-2 h-5 w-5" />}
+                    {isLoading ? t('enhancing') : t('generate')}
+                  </button>
+              </div>
             </form>
         )}
 
@@ -171,13 +157,12 @@ const AiGenerator = () => {
 
         {job && (
           <div className="animate-fadeIn mt-6">
-            <h2 className="text-xl font-semibold mb-2">{t('generationProgress')}</h2>
             <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <p className="text-sm text-gray-500 dark:text-gray-400">{t('promptLabel')}</p>
                 <p className="italic text-gray-800 dark:text-gray-200">{job.prompt}</p>
             </div>
             
-            {job.status !== 'completed' && job.status !== 'failed' && (
+            {(job.status === 'pending' || job.status === 'processing') && (
               <div>
                 <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4 mb-2">
                   <div className="bg-blue-600 h-4 rounded-full" style={{ width: `${job.percentage_complete || 0}%`, transition: 'width 0.5s ease-in-out' }}></div>
@@ -195,24 +180,22 @@ const AiGenerator = () => {
             )}
              
             {job.status === 'completed' && (
-                <div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {job.files.map(file => (
-                            <div key={file.index} className="group relative rounded-lg overflow-hidden">
-                                <img src={file.thumb_lg} alt={`Generated image ${file.index}`} className="w-full h-full object-cover"/>
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center">
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-2 rtl:space-x-reverse">
-                                        <button onClick={() => handleAction('vary', file.index)} disabled={actionStates[file.index]} className="bg-white/80 text-gray-900 p-2 rounded-full hover:bg-white text-sm font-semibold disabled:opacity-50 disabled:cursor-wait">
-                                           {actionStates[file.index] ? <ArrowPathIcon className="w-5 h-5 animate-spin"/> : t('vary')}
-                                        </button>
-                                        <button onClick={() => handleAction('upscale', file.index)} disabled={actionStates[file.index]} className="bg-white/80 text-gray-900 p-2 rounded-full hover:bg-white text-sm font-semibold disabled:opacity-50 disabled:cursor-wait">
-                                            {actionStates[file.index] ? <ArrowPathIcon className="w-5 h-5 animate-spin"/> : t('upscale')}
-                                        </button>
-                                    </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {job.files.map(file => (
+                        <div key={file.index} className="group relative rounded-lg overflow-hidden">
+                            <img src={file.thumb_lg} alt={`Generated image ${file.index}`} className="w-full h-full object-cover"/>
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center">
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-2 rtl:space-x-reverse">
+                                    <button onClick={() => handleAction('vary', file.index)} disabled={isLoading || isAnyActionLoading} className="bg-white/80 text-gray-900 px-3 py-2 rounded-full hover:bg-white text-sm font-semibold disabled:opacity-50 disabled:cursor-wait flex items-center">
+                                       {actionStates[file.index] ? <ArrowPathIcon className="w-5 h-5 animate-spin"/> : t('vary')}
+                                    </button>
+                                    <button onClick={() => handleAction('upscale', file.index)} disabled={isLoading || isAnyActionLoading} className="bg-white/80 text-gray-900 px-3 py-2 rounded-full hover:bg-white text-sm font-semibold disabled:opacity-50 disabled:cursor-wait flex items-center">
+                                        {actionStates[file.index] ? <ArrowPathIcon className="w-5 h-5 animate-spin"/> : t('upscale')}
+                                    </button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))}
                 </div>
              )}
 
