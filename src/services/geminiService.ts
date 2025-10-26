@@ -1,5 +1,6 @@
 
-import { GoogleGenAI } from "@google/genai";
+// ✅ CORRECT
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Assume process.env.API_KEY is configured in the environment.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
