@@ -1,4 +1,3 @@
-
 import type { StockFileInfo, StockOrder, StockDownloadLink, SupportedSite } from '../types';
 
 const API_KEY = 'A8K9bV5s2OX12E8cmS4I96mtmSNzv7';
@@ -151,6 +150,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
     site: data.source, // Use 'source' from response as the canonical site name
     preview: previewUrl,
     cost: !isNaN(parsedCost) ? parsedCost : null,
+    debugid: data.debugid,
   };
 };
 
@@ -199,7 +199,7 @@ export const generateDownloadLink = async (taskId: string): Promise<StockDownloa
 
 /**
  * Retrieves the list of supported stock media websites and their costs.
- * @returns A promise resolving to an array of supported sites.
+ * @returns A promise that resolves to an array of supported sites.
  */
 export const getSupportedSites = async (): Promise<SupportedSite[]> => {
   // This data is extracted from the provided HTML source for nehtw.com

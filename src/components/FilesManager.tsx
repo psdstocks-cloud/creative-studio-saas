@@ -122,6 +122,7 @@ const FilesManager = () => {
                             <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-300 uppercase tracking-wider">{t('source')}</th>
                             <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-300 uppercase tracking-wider">{t('date')}</th>
                             <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-300 uppercase tracking-wider">{t('cost')}</th>
+                            <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-300 uppercase tracking-wider">{t('debugId')}</th>
                             <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-300 uppercase tracking-wider">{t('status')}</th>
                             <th scope="col" className="px-6 py-3 text-end text-xs font-medium text-gray-300 uppercase tracking-wider">{t('action')}</th>
                         </tr>
@@ -133,6 +134,7 @@ const FilesManager = () => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{order.file_info.site}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(order.created_at).toLocaleDateString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{order.file_info.cost?.toFixed(2)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-400">{order.file_info.debugid || 'N/A'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap"><StatusIndicator status={order.status} /></td>
                                 <td className="px-6 py-4 whitespace-nowrap text-end">
                                     {order.status === 'ready' && (

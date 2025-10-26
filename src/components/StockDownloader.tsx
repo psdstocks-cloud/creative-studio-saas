@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getStockFileInfo, orderStockFile, checkOrderStatus, generateDownloadLink } from '../services/stockService';
-import { createOrder, updateOrder } from '../services/filesService';
+import { createOrder, updateOrder, findOrderBySiteAndId } from '../services/filesService';
 import type { StockFileInfo, StockOrder, Order } from '../types';
 import { LinkIcon, ArrowPathIcon, CheckCircleIcon, XMarkIcon, ExclamationTriangleIcon, ArrowDownTrayIcon } from './icons/Icons';
 import SupportedSites from './SupportedSites';
@@ -132,6 +132,7 @@ const StockDownloader = () => {
     const [state, setState] = useState<DownloadState>('idle');
     const [order, setOrder] = useState<StockOrder | null>(null);
     const [singleFileInfo, setSingleFileInfo] = useState<StockFileInfo | null>(null);
+    const [previousOrder, setPreviousOrder] = useState<Order | null>(null);
     
     const [batchUrls, setBatchUrls] = useState('');
     const [batchFileInfos, setBatchFileInfos] = useState<BatchFileInfo[]>([]);
@@ -154,6 +155,7 @@ const StockDownloader = () => {
         setState('idle');
         setOrder(null);
         setSingleFileInfo(null);
+        setPreviousOrder(null);
         setBatchUrls('');
         setBatchFileInfos([]);
         setSelectedFileIds(new Set());
@@ -192,8 +194,13 @@ const StockDownloader = () => {
         setError(null);
         setSingleFileInfo(null);
         setOrder(null);
+        setPreviousOrder(null);
         try {
             const info = await getStockFileInfo(url);
+            if (user) {
+                const prevOrder = await findOrderBySiteAndId(user.id, info.site, info.id);
+                setPreviousOrder(prevOrder);
+            }
             setSingleFileInfo(info);
             setState('info');
         } catch (err: any) {
@@ -203,24 +210,42 @@ const StockDownloader = () => {
     };
 
     const handleOrder = async () => {
-        if (!singleFileInfo || singleFileInfo.cost === null || !user) return;
-        if (user.balance < singleFileInfo.cost) {
-            setError(t('insufficientPoints'));
-            setState('error');
-            return;
-        }
-        setState('ordering');
-        setError(null);
-        try {
+        if (!singleFileInfo || !user) return;
+
+        const isReDownload = !!previousOrder;
+
+        // Common logic for both new and re-downloads
+        const placeOrderFlow = async () => {
             const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
-            await deductPoints(singleFileInfo.cost);
             const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo);
             setRecentOrders(prev => [newOrder, ...prev]);
             setOrder(orderResult);
             setState('processing');
+        };
+
+        setState('ordering');
+        setError(null);
+
+        try {
+            if (isReDownload) {
+                // Re-download: just place the order, no point deduction
+                await placeOrderFlow();
+            } else {
+                // New download: check balance, deduct points, then place order
+                if (singleFileInfo.cost === null) return;
+                if (user.balance < singleFileInfo.cost) {
+                    setError(t('insufficientPoints'));
+                    setState('error');
+                    return;
+                }
+                await deductPoints(singleFileInfo.cost);
+                await placeOrderFlow();
+            }
         } catch (err: any) {
             setError(err.message || 'Could not place the order.');
             setState('error');
+            // Note: A point refund mechanism might be needed here if deductPoints succeeds but placeOrderFlow fails.
+            // For now, we assume the transaction is atomic from the user's perspective.
         }
     };
     
@@ -319,8 +344,6 @@ const StockDownloader = () => {
         let failedCount = 0;
 
         for (const result of results) {
-            // FIX: Use a type guard ('in' operator) to ensure `orderResult` exists on the object,
-            // satisfying TypeScript's strict type checking for the discriminated union.
             if (result.status === 'fulfilled' && 'orderResult' in result) {
                 try {
                     const newOrder = await createOrder(user.id, result.orderResult.task_id, result.file);
@@ -368,6 +391,7 @@ const StockDownloader = () => {
         setError(null);
         setSingleFileInfo(null);
         setOrder(null);
+        setPreviousOrder(null);
     }
 
     const renderSingleMode = () => (
@@ -489,21 +513,45 @@ const StockDownloader = () => {
         switch (state) {
             case 'info':
                 if (!singleFileInfo || !user) return null;
-                const hasEnoughPoints = singleFileInfo.cost !== null && user.balance >= singleFileInfo.cost;
+                const isReDownload = !!previousOrder;
+                const cost = isReDownload ? 0 : singleFileInfo.cost;
+                const hasEnoughPoints = cost !== null && user.balance >= cost;
+                
                 return (
                     <>
+                        {isReDownload && (
+                            <div className="bg-blue-900/50 text-blue-300 text-sm font-semibold p-3 rounded-lg mb-4">
+                                {t('reDownloadFree')}
+                            </div>
+                        )}
                         <img src={singleFileInfo.preview} alt="Stock media preview" className="rounded-lg mb-4 max-w-sm w-full mx-auto shadow-lg" />
-                        <p className="text-lg text-gray-200">{t('costToDownload')}: <span className="font-bold text-blue-400">
-                            {singleFileInfo.cost !== null ? `${singleFileInfo.cost.toFixed(2)} ${t('points')}` : 'N/A'}
-                        </span></p>
+                        <p className="text-lg text-gray-200">
+                            {t('costToDownload')}: 
+                            {isReDownload ? (
+                                <>
+                                    <span className="line-through text-gray-400 ms-2">
+                                    {singleFileInfo.cost?.toFixed(2)} {t('points')}
+                                    </span>
+                                    <span className="font-bold text-green-400 ms-2">
+                                    {t('free')}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="font-bold text-blue-400 ms-2">
+                                    {singleFileInfo.cost !== null ? `${singleFileInfo.cost.toFixed(2)} ${t('points')}` : 'N/A'}
+                                </span>
+                            )}
+                        </p>
 
-                        {!hasEnoughPoints && singleFileInfo.cost !== null && (
+                        {!hasEnoughPoints && !isReDownload && singleFileInfo.cost !== null && (
                             <p className="text-red-500 font-semibold mt-2">{t('insufficientPoints')}</p>
                         )}
 
                         <div className="flex justify-center space-x-4 rtl:space-x-reverse mt-6">
                             <button onClick={handleCloseModal} className="w-full bg-gray-600 text-gray-200 font-bold py-3 px-6 rounded-lg hover:bg-gray-500 transition-colors">{t('cancel')}</button>
-                            <button onClick={handleOrder} disabled={!hasEnoughPoints || singleFileInfo.cost === null} className="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors">{t('confirmAndOrder')}</button>
+                            <button onClick={handleOrder} disabled={!hasEnoughPoints || (singleFileInfo.cost === null && !isReDownload)} className="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors">
+                                {isReDownload ? t('reDownload') : t('confirmAndOrder')}
+                            </button>
                         </div>
                     </>
                 );

@@ -18,6 +18,7 @@ export interface StockFileInfo {
   site: string;
   preview: string;
   cost: number | null;
+  debugid?: string;
 }
 
 export interface StockOrder {

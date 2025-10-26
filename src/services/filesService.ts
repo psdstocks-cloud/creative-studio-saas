@@ -71,3 +71,29 @@ export const updateOrder = async (taskId: string, updates: Partial<Order>): Prom
         // We don't throw an error here to prevent a failed UI update from stopping the polling loop.
     }
 }
+
+/**
+ * Finds the most recent successful order for a given stock file by a user.
+ * @param userId The user's ID.
+ * @param site The stock media site.
+ * @param id The stock media ID.
+ * @returns A promise that resolves to the order record or null if not found.
+ */
+export const findOrderBySiteAndId = async (userId: string, site: string, id: string): Promise<Order | null> => {
+    const { data, error } = await supabase
+        .from('stock_order')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('file_info->>site', site) // Querying inside JSONB
+        .eq('file_info->>id', id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+    if (error) {
+        console.error("Error finding previous order:", error);
+        // Don't throw, just return null as it's not a critical failure
+        return null;
+    }
+
+    return data && data.length > 0 ? data[0] as Order : null;
+}

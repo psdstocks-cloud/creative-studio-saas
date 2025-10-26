@@ -5,6 +5,7 @@ export const translations = {
     points: "Points",
     error: "Error",
     cost: "Cost",
+    free: "Free",
     // Sidebar
     home: "Home",
     stockFullSize: "Stock Full-Size",
@@ -62,6 +63,8 @@ export const translations = {
     cancel: "Cancel",
     ordering: "Ordering...",
     confirmAndOrder: "Confirm and Order",
+    reDownloadFree: "You've ordered this file before. Re-download for free.",
+    reDownload: "Re-download",
     processingOrder: "Processing Your Order",
     processingOrderDesc: "Your request is in the queue. We're working on it!",
     taskId: "Task ID",
@@ -98,6 +101,7 @@ export const translations = {
     date: "Date",
     status: "Status",
     action: "Action",
+    debugId: "Debug ID",
     // AI Generator
     aiGeneratorTitle: "AI Image Generator",
     promptPlaceholder: "A majestic lion wearing a crown, cinematic lighting, hyperrealistic...",
@@ -138,6 +142,7 @@ export const translations = {
     points: "نقاط",
     error: "خطأ",
     cost: "التكلفة",
+    free: "مجاني",
     // Sidebar
     home: "الرئيسية",
     stockFullSize: "صور ستوك بالحجم الكامل",
@@ -195,6 +200,8 @@ export const translations = {
     cancel: "إلغاء",
     ordering: "جاري الطلب...",
     confirmAndOrder: "تأكيد الطلب",
+    reDownloadFree: "لقد طلبت هذا الملف من قبل. أعد تنزيله مجانًا.",
+    reDownload: "إعادة تحميل",
     processingOrder: "جاري معالجة طلبك",
     processingOrderDesc: "طلبك في قائمة الانتظار. نحن نعمل عليه الآن!",
     taskId: "معرف المهمة",
@@ -231,6 +238,7 @@ export const translations = {
     date: "التاريخ",
     status: "الحالة",
     action: "الإجراء",
+    debugId: "معرف التصحيح",
     // AI Generator
     aiGeneratorTitle: "مولد الصور بالذكاء الاصطناعي",
     promptPlaceholder: "أسد مهيب يرتدي تاجًا، إضاءة سينمائية، فائق الواقعية...",
