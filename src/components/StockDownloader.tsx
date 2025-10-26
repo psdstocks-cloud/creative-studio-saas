@@ -659,7 +659,7 @@ const StockDownloader = () => {
     const renderErrorModal = () => (
         <div className="min-h-[200px] flex flex-col items-center justify-center text-center p-4">
             <div className="relative w-16 h-16 mb-4">
-                <XMarkIcon className="absolute inset-0 w-full h-full text-red-500" />
+                <ExclamationTriangleIcon className="absolute inset-0 w-full h-full text-red-500" />
             </div>
             <p className="text-red-400 font-semibold mb-6 text-lg">{error}</p>
             <button onClick={handleStartNew} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors w-full">{t('startAnotherDownload')}</button>

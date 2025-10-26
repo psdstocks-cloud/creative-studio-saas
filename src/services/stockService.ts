@@ -8,10 +8,10 @@ const API_BASE_URL = 'https://nehtw.com/api';
  * It automatically adds the API key header, handles non-OK responses,
  * and includes a timeout to prevent requests from hanging indefinitely.
  * @param endpoint The API endpoint to call (e.g., '/stockinfo/shutterstock/123').
- * @param timeout The request timeout in milliseconds. Defaults to 15 seconds.
+ * @param timeout The request timeout in milliseconds. Defaults to 30 seconds.
  * @returns A promise that resolves with the JSON response.
  */
-const apiFetch = async (endpoint: string, timeout = 15000) => {
+const apiFetch = async (endpoint: string, timeout = 30000) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -42,7 +42,7 @@ const apiFetch = async (endpoint: string, timeout = 15000) => {
     }
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      throw new Error(`The request timed out after ${timeout / 1000} seconds. Please try again.`);
+      throw new Error(`The request timed out after ${timeout / 1000} seconds. The server may be busy or the requested media is unavailable. Please check the URL and try again.`);
     }
     // Re-throw other errors (like network errors or errors from the initial throw)
     throw error;
