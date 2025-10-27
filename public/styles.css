@@ -1,0 +1,53 @@
+/* Custom properties for theme consistency */
+:root {
+  --background-start-rgb: 20, 29, 49;
+  --background-end-rgb: 15, 23, 42;
+  --glass-bg-rgb: 255, 255, 255;
+}
+
+/* Gradient Background */
+.gradient-bg {
+  background: linear-gradient(
+    135deg,
+    rgb(var(--background-start-rgb)) 0%,
+    rgb(var(--background-end-rgb)) 100%
+  );
+}
+
+/* Glassmorphism Effect */
+.glassmorphism {
+  background: rgba(var(--glass-bg-rgb), 0.1);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--glass-bg-rgb), 0.15);
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Basic spin animation for loading icons */
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
