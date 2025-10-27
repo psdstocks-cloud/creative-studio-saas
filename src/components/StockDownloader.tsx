@@ -67,20 +67,30 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
         try {
             console.log('🔽 Generating fresh download link for task:', taskId);
             
-            // Always generate a fresh link (temporary links expire)
             const result = await generateDownloadLink(taskId);
             console.log('✅ Download link result:', result);
+            console.log('📦 Result keys:', Object.keys(result));
             
-            if (!result || !result.url || result.url === '') {
+            // Handle different response formats from the API
+            const downloadUrl = 
+                result.url || 
+                result.download_url || 
+                result.link || 
+                (result.data && (result.data.url || result.data.download_url));
+            
+            console.log('🔗 Extracted URL:', downloadUrl);
+            
+            if (!downloadUrl || downloadUrl === '') {
+                console.error('❌ No valid URL found in response:', result);
                 throw new Error('Invalid download URL received from API');
             }
             
-            console.log('✅ Download URL:', result.url);
+            console.log('✅ Download URL:', downloadUrl);
             
             // Create temporary link and trigger download
             const link = document.createElement('a');
-            link.href = result.url;
-            link.download = ''; // Let server determine filename
+            link.href = downloadUrl;
+            link.download = '';
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             document.body.appendChild(link);
@@ -98,7 +108,8 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
                 return newSet;
             });
         }
-    };
+    };    
+    
     
     
 

@@ -1,8 +1,3 @@
-
-
-
-
-
 export interface AiJobFile {
   index: number;
   thumb_sm: string;
@@ -43,8 +38,15 @@ export interface StockOrder {
   status: 'pending' | 'ready' | 'failed';
 }
 
+// ✅ UPDATED: Support multiple possible response formats from API
 export interface StockDownloadLink {
-    url: string;
+    url?: string;
+    download_url?: string;
+    link?: string;
+    data?: {
+        url?: string;
+        download_url?: string;
+    };
 }
 
 export interface SupportedSite {
