@@ -11,8 +11,8 @@ export default defineConfig(({ mode }) => {
       publicDir: path.resolve(__dirname, 'public'),
       envDir: path.resolve(__dirname, '.'), // Tell Vite to look for .env files in root
       server: {
-        port: 3000,
-        host: '0.0.0.0',
+        port: 3001,
+        host: 'localhost',
       },
       plugins: [react()],
       envPrefix: 'VITE_',

@@ -1,6 +1,8 @@
 
 
 
+
+
 export interface AiJobFile {
   index: number;
   thumb_sm: string;
@@ -67,4 +69,54 @@ export interface Order {
   file_info: StockFileInfo;
   status: 'processing' | 'ready' | 'failed';
   download_url: string | null;
+}
+
+// FIX: Add Database schema types for Supabase client to fix type errors.
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          balance: number;
+          updated_at: string | null;
+        };
+        Insert: {
+          id: string;
+          balance?: number;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          balance?: number;
+          updated_at?: string | null;
+        };
+      };
+      stock_order: {
+        Row: Order;
+        Insert: {
+          id?: number;
+          created_at?: string;
+          user_id: string;
+          task_id: string;
+          file_info: StockFileInfo;
+          status: "processing" | "ready" | "failed";
+          download_url?: string | null;
+        };
+        Update: Partial<Order>;
+      };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
 }
