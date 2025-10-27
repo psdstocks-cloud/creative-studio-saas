@@ -5,15 +5,26 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "build": "rimraf dist && mkdir dist && esbuild index.tsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.ts=tsx --format=esm --minify --define:process.env.SUPABASE_URL='\"'$SUPABASE_URL'\"' --define:process.env.SUPABASE_ANON_KEY='\"'$SUPABASE_ANON_KEY'\"' && cp index.html styles.css favicon.svg dist/"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js"
   },
   "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
     "esbuild": "^0.20.2",
-    "rimraf": "^5.0.5"
+    "rimraf": "^5.0.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.43.4",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.4"
   }
 }
