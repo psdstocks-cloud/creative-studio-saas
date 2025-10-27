@@ -267,5 +267,4 @@ If you get stuck:
 3. Make sure Supabase database is set up (run `supabase-add-missing.sql`)
 4. Check browser console for errors
 
-**Most common issue**: Forgetting to add environment variables → Add them and redeploy!
 
