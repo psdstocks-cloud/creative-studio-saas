@@ -96,7 +96,10 @@ const parseStockUrl = (url: string): { site: string; id: string } => {
  * @returns A promise resolving to the stock file's information.
  */
 export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
+  console.log('🔍 Parsing URL:', url);
   const { site, id } = parseStockUrl(url);
+  console.log('✅ Parsed:', { site, id });
+  console.log('📞 Calling API: /stockinfo/' + site + '/' + id);
   const responseData = await apiFetch(`/stockinfo/${site}/${id}`);
 
   // Handle cases where the actual data is nested inside a 'data' property.

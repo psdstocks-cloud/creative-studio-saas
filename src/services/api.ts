@@ -51,24 +51,34 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}${finalEndpoint}`, config);
+    const fullUrl = `${API_BASE_URL}${finalEndpoint}`;
+    console.log('🌐 API Request:', method, fullUrl);
+    
+    const response = await fetch(fullUrl, config);
+    
+    console.log('📡 API Response:', response.status, response.statusText);
 
     if (!response.ok) {
       let errorMessage = `API Error: ${response.status} ${response.statusText}`;
       try {
         const errorData = await response.json();
-        errorMessage = errorData.message || errorData.data || errorMessage;
+        console.error('❌ API Error Data:', errorData);
+        errorMessage = errorData.message || errorData.error || errorData.data || errorMessage;
       } catch (e) {
         // Ignore if the body isn't JSON or is empty.
+        console.warn('⚠️ Could not parse error response as JSON');
       }
       throw new Error(errorMessage);
     }
     
     // Handle successful responses that may not have content to parse
     const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    const result = text ? JSON.parse(text) : null;
+    console.log('✅ API Success:', result);
+    return result;
 
   } catch (error: any) {
+    console.error('🔥 API Fetch Error:', error);
     if (error.name === 'AbortError') {
       throw new Error(`The request timed out after ${timeout / 1000} seconds. Please try again.`);
     }
