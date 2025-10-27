@@ -1,12 +1,13 @@
-// ✅ CORRECT import
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// FIX: Corrected import to use GoogleGenAI from @google/genai and not GoogleGenerativeAI from @google/generative-ai
+import { GoogleGenAI } from "@google/genai";
 
-// Initialize with API key from environment
-const genAI = new GoogleGenerativeAI(process.env.API_KEY || '');
+// FIX: Initialized with named apiKey parameter as per guidelines
+// The API key is sourced from process.env.API_KEY, which is defined in vite.config.ts
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const enhancePrompt = async (prompt: string, isThinkingMode: boolean): Promise<string> => {
-  // Use appropriate model based on thinking mode
-  const modelName = isThinkingMode ? 'gemini-2.0-flash-thinking-exp' : 'gemini-1.5-flash';
+  // FIX: Updated to use recommended models, avoiding deprecated ones like gemini-1.5-flash
+  const modelName = isThinkingMode ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
   
   const systemInstruction = `You are a world-class prompt engineer for an advanced AI image generator.
 Your task is to take a user's simple prompt and expand it into a rich, detailed, and evocative description.
@@ -14,24 +15,20 @@ Focus on cinematic lighting, dynamic composition, intricate details, textures, a
 Produce only the final, enhanced prompt as a single block of text, without any conversational preamble or explanation.`;
 
   try {
-    // Get the model
-    const model = genAI.getGenerativeModel({ 
+    // FIX: Refactored to use the recommended ai.models.generateContent method, which is more direct.
+    const response = await ai.models.generateContent({
       model: modelName,
-      systemInstruction: systemInstruction
+      contents: `Enhance this user prompt for an AI image generator to be more vivid and detailed. User prompt: "${prompt}"`,
+      config: {
+        systemInstruction: systemInstruction
+      }
     });
-
-    // Generate content
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
     
-    return text.trim();
+    // FIX: Correctly access the generated text using the .text property instead of response.text()
+    return response.text.trim();
   } catch (error) {
     console.error("Error enhancing prompt with Gemini:", error);
     // Fallback to the original prompt on error
     return prompt;
   }
 };
-
-// Export default for convenience
-export default { enhancePrompt };

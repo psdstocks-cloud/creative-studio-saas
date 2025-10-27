@@ -8,10 +8,10 @@ import type { StockFileInfo, StockOrder, StockDownloadLink, SupportedSite } from
  */
 const parsers = [
     // Shutterstock (ordered from most to least specific)
-    // FIX: Changed greedy `*` to optional `?` to prevent it from consuming the content type path segment.
     { site: 'vshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?video\/clip-([0-9]+)/i },
     { site: 'mshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?music\/track-([0-9]+)/i },
-    { site: 'shutterstock', regex: /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/[a-zA-Z0-9-]+-([0-9]+)/i },
+    // FIX: Using a greedy `.+` to robustly capture the description before the final ID.
+    { site: 'shutterstock', regex: /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/.+-([0-9]+)/i },
     { site: 'shutterstock', regex: /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/([0-9]+)/i },
 
     // Adobe Stock
@@ -41,10 +41,12 @@ const parsers = [
     { site: 'flaticon', regex: /flaticon\.com\/(?:[a-z-]+\/)*[a-z-]+_([0-9]+)/i },
 
     // Envato Elements
-    { site: 'envato', regex: /elements\.envato\.com\/(?:[a-z-]+\/)+[a-zA-Z0-9-]+-([A-Z0-9]+)/i },
+    // FIX: Using `.+` to handle complex descriptions.
+    { site: 'envato', regex: /elements\.envato\.com\/(?:[a-z-]+\/)+.+-([A-Z0-9]+)/i },
 
     // Dreamstime
-    { site: 'dreamstime', regex: /dreamstime\.com\/.*-image([0-9]+)/i },
+    // FIX: Removed hyphen before "image" to support multiple URL formats.
+    { site: 'dreamstime', regex: /dreamstime\.com\/.*image([0-9]+)/i },
 
     // VectorStock
     { site: 'vectorstock', regex: /vectorstock\.com\/[a-z-]+\/[a-z-]+-([0-9]+)/i },
@@ -53,7 +55,8 @@ const parsers = [
     { site: 'motionarray', regex: /motionarray\.com\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+-([0-9]+)/i },
 
     // Alamy
-    { site: 'alamy', regex: /alamy\.com\/[a-zA-Z0-9-]+-([A-Z0-9]+)\.html/i },
+    // FIX: Using `.+` to handle complex descriptions.
+    { site: 'alamy', regex: /alamy\.com\/.+-([A-Z0-9]+)\.html/i },
 
     // Storyblocks
     { site: 'storyblocks', regex: /storyblocks\.com\/(?:video|images|audio)\/stock\/[0-9a-z-]*?-([0-9a-z_]+)/i },

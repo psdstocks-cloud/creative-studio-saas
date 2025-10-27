@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { config } from './config';
 import './input.css';
 
 const rootElement = document.getElementById('root');
@@ -12,14 +13,35 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <HashRouter>
-      <LanguageProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </LanguageProvider>
-    </HashRouter>
-  </React.StrictMode>
-);
+
+// Check if Supabase config is available to provide a clear error message
+if (!config.supabase.isAvailable) {
+  root.render(
+    <React.StrictMode>
+      <div className="flex h-screen w-screen items-center justify-center bg-gray-900 text-white text-center p-8">
+        <div>
+          <h1 className="text-3xl font-bold text-red-500 mb-4">Configuration Error</h1>
+          <p className="text-gray-200 mb-2">
+            The application is missing essential Supabase credentials.
+          </p>
+          <p className="text-gray-400">
+            Please ensure that VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables are
+            correctly set.
+          </p>
+        </div>
+      </div>
+    </React.StrictMode>
+  );
+} else {
+  root.render(
+    <React.StrictMode>
+      <HashRouter>
+        <LanguageProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </LanguageProvider>
+      </HashRouter>
+    </React.StrictMode>
+  );
+}
