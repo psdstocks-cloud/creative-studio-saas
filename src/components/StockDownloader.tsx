@@ -64,10 +64,29 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
     const handleDownload = async (taskId: string) => {
         setDownloading(prev => new Set(prev).add(taskId));
         try {
-            const { url } = await generateDownloadLink(taskId);
-            window.open(url, '_blank');
-        } catch (err) {
-            alert('Could not generate download link.');
+            console.log('🔽 Generating download link for task:', taskId);
+            const result = await generateDownloadLink(taskId);
+            console.log('✅ Download link result:', result);
+            
+            if (!result.url || result.url === '') {
+                throw new Error('Invalid download URL received from API');
+            }
+            
+            // Use window.location.href for direct download instead of window.open
+            // This prevents popup blockers and empty tabs
+            const link = document.createElement('a');
+            link.href = result.url;
+            link.download = ''; // Let the server determine the filename
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log('✅ Download initiated');
+        } catch (err: any) {
+            console.error('❌ Download error:', err);
+            alert(err.message || 'Could not generate download link. Please try again.');
         } finally {
             setDownloading(prev => {
                 const newSet = new Set(prev);
@@ -76,6 +95,7 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
             });
         }
     };
+    
 
     if (orders.length === 0) return null;
 
