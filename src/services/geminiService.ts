@@ -1,11 +1,31 @@
 // FIX: Corrected import to use GoogleGenAI from @google/genai and not GoogleGenerativeAI from @google/generative-ai
 import { GoogleGenAI } from "@google/genai";
 
-// FIX: Initialized with named apiKey parameter as per guidelines
-// The API key is sourced from process.env.API_KEY, which is defined in vite.config.ts
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// FIX: Lazy initialization to prevent crashes when API key is missing
+// The API key is sourced from environment variables
+let ai: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!ai) {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      console.warn('Gemini API key not configured');
+      return null;
+    }
+    ai = new GoogleGenAI({ apiKey });
+  }
+  return ai;
+};
 
 export const enhancePrompt = async (prompt: string, isThinkingMode: boolean): Promise<string> => {
+  const aiInstance = getAI();
+  
+  // If API is not configured, return the original prompt
+  if (!aiInstance) {
+    console.warn('Gemini API not available, returning original prompt');
+    return prompt;
+  }
+  
   // FIX: Updated to use recommended models, avoiding deprecated ones like gemini-1.5-flash
   const modelName = isThinkingMode ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
   
@@ -16,7 +36,7 @@ Produce only the final, enhanced prompt as a single block of text, without any c
 
   try {
     // FIX: Refactored to use the recommended ai.models.generateContent method, which is more direct.
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model: modelName,
       contents: `Enhance this user prompt for an AI image generator to be more vivid and detailed. User prompt: "${prompt}"`,
       config: {
