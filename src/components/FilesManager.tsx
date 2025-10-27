@@ -32,7 +32,6 @@ const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: 
     }, [orders, onUpdate]);
 };
 
-
 const FilesManager = () => {
     const { t } = useLanguage();
     const { user } = useAuth();
@@ -90,14 +89,47 @@ const FilesManager = () => {
         });
     }, [orders, searchQuery]);
 
-
+    // ✅ FIXED: Updated handleDownload to support downloadLink field
     const handleDownload = async (taskId: string) => {
         setDownloading(prev => new Set(prev).add(taskId));
         try {
-            const { url } = await generateDownloadLink(taskId);
-            window.open(url, '_blank');
-        } catch (err) {
-            alert('Could not generate download link.');
+            console.log('🔽 Generating fresh download link for task:', taskId);
+            
+            const result = await generateDownloadLink(taskId);
+            console.log('✅ Download link result:', result);
+            console.log('📦 Result keys:', Object.keys(result));
+            
+            // Handle different response formats from the API
+            const downloadUrl = 
+                result.downloadLink ||  // ← API uses this field!
+                result.url || 
+                result.download_url || 
+                result.link || 
+                (result.data && (result.data.downloadLink || result.data.url || result.data.download_url));
+            
+            console.log('🔗 Extracted URL:', downloadUrl);
+            
+            if (!downloadUrl || downloadUrl === '') {
+                console.error('❌ No valid URL found in response:', result);
+                throw new Error('Invalid download URL received from API');
+            }
+            
+            console.log('✅ Download URL:', downloadUrl);
+            
+            // Create temporary link and trigger download
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = '';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log('✅ Download initiated successfully');
+        } catch (err: any) {
+            console.error('❌ Download error:', err);
+            alert(err.message || 'Could not generate download link. The file may still be processing. Please wait a moment and try again.');
         } finally {
             setDownloading(prev => {
                 const newSet = new Set(prev);
