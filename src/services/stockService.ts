@@ -104,21 +104,47 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
 
   console.log('📦 Raw API Response:', responseData);
 
-  // ✅ FIX: Check if data is an empty array (file unavailable)
-  if (Array.isArray(responseData.data) && responseData.data.length === 0) {
-    throw new Error('This file is not available for download. It may have been removed or is not supported by the API.');
-  }
-
-  // ✅ FIX: Check if response indicates failure
+  // ✅ FIX: Check if response explicitly indicates failure
   if (responseData.success === false) {
     throw new Error(responseData.message || 'Could not retrieve file details.');
   }
 
-  // Handle cases where the actual data is nested inside a 'data' property.
+  // ✅ FIX: Check if data is an empty array (file unavailable)
+  if (Array.isArray(responseData.data)) {
+    if (responseData.data.length === 0) {
+      throw new Error('This file is not available for download. It may have been removed or is not supported by the API.');
+    }
+    // If data is a non-empty array, take the first item
+    const data = responseData.data[0];
+    
+    const costValue = data.cost ?? data.price;
+    const previewUrl = data.preview || data.thumb || data.thumb_lg;
+
+    if (!previewUrl || !data.id) {
+      throw new Error('Could not retrieve file details. The URL might be incorrect or the file is unavailable.');
+    }
+    
+    const parsedCost = parseFloat(costValue);
+
+    return {
+      id: data.id,
+      site: data.site,
+      preview: previewUrl,
+      cost: !isNaN(parsedCost) ? parsedCost : null,
+      title: data.title || data.name,
+      name: data.name,
+      author: data.author,
+      ext: data.ext,
+      sizeInBytes: data.size,
+      debugid: data.debugid,
+    };
+  }
+
+  // Handle cases where data is nested inside a 'data' property (as an object)
   const data = responseData.data || responseData;
 
-  // ✅ FIX: If data is still an array after extraction, it's invalid
-  if (Array.isArray(data)) {
+  // ✅ FIX: Final validation - ensure data is an object with required fields
+  if (typeof data !== 'object' || data === null) {
     throw new Error('The API returned an invalid response format. Please try again or contact support.');
   }
 
@@ -127,13 +153,12 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
 
   // Validate the response to prevent showing an empty modal.
   if (!previewUrl || !data.id) {
-    throw new Error(responseData.message || 'Could not retrieve file details. The URL might be incorrect or the file is unavailable.');
+    throw new Error('Could not retrieve file details. The URL might be incorrect or the file is unavailable.');
   }
   
   // Robustly parse the cost, which might be a string or number.
   const parsedCost = parseFloat(costValue);
 
-  // Fix: Populate all available fields for the StockFileInfo interface.
   return {
     id: data.id,
     site: data.site,
@@ -147,6 +172,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
     debugid: data.debugid,
   };
 };
+
 
 /**
  * Places an order to download a stock media file.

@@ -262,8 +262,8 @@ const StockDownloader = () => {
         setSelectedFileIds(new Set());
 
         const results = await Promise.allSettled(
-            uniqueUrls.map(async (u) => {
-                const info = await getStockFileInfo(u);
+            uniqueUrls.map(async (u: string) => {
+                const info = await getStockFileInfo(u as string);
                 const prevOrder = user ? await findOrderBySiteAndId(user.id, info.site, info.id) : null;
                 return { ...info, sourceUrl: u, isReDownload: !!prevOrder };
             })
@@ -271,15 +271,17 @@ const StockDownloader = () => {
         
         const newFileInfos: BatchFileInfo[] = results.map((result, i) => {
             if (result.status === 'fulfilled') {
-                return { ...result.value, status: 'success' };
+                return { ...result.value, status: 'success' } as BatchFileInfo;
             } else {
                  return {
                     id: `error-${i}-${Date.now()}`,
-                    status: 'error',
+                    status: 'error' as const,
                     error: (result.reason as Error).message,
-                    sourceUrl: uniqueUrls[i],
-                    site: '', preview: '', cost: null
-                };
+                    sourceUrl: uniqueUrls[i] as string,
+                    site: '', 
+                    preview: '', 
+                    cost: null
+                } as BatchFileInfo;
             }
         });
 
