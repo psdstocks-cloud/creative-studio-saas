@@ -111,7 +111,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
     console.log('✅ Using first item from array:', data);
     
     const costValue = data.cost ?? data.price;
-    const previewUrl = data.preview || data.thumb || data.thumb_lg;
+    const previewUrl = data.preview || data.thumb || data.thumb_lg || data.image;
 
     if (!previewUrl || !data.id) {
       throw new Error('Could not retrieve file details. The URL might be incorrect or the file is unavailable.');
@@ -144,7 +144,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   }
 
   const costValue = data.cost ?? data.price;
-  const previewUrl = data.preview || data.thumb || data.thumb_lg;
+  const previewUrl = data.preview || data.thumb || data.thumb_lg || data.image;
 
   console.log('🔍 Validation - Preview:', previewUrl, 'ID:', data.id, 'Cost:', costValue);
 
