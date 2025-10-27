@@ -9,7 +9,6 @@ const parsers = [
     // Shutterstock (ordered from most to least specific)
     { site: 'vshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?video\/clip-([0-9]+)/i },
     { site: 'mshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?music\/track-([0-9]+)/i },
-    // FIX: Using a non-greedy `.+?` to robustly capture the description before the final ID.
     { site: 'shutterstock', regex: /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/.+?-([0-9]+)/i },
     { site: 'shutterstock', regex: /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/([0-9]+)/i },
 
@@ -40,11 +39,9 @@ const parsers = [
     { site: 'flaticon', regex: /flaticon\.com\/(?:[a-z-]+\/)*[a-z-]+_([0-9]+)/i },
 
     // Envato Elements
-    // FIX: Using non-greedy `.+?` to handle complex descriptions.
     { site: 'envato', regex: /elements\.envato\.com\/(?:[a-z-]+\/)+.+?-([A-Z0-9]+)/i },
 
     // Dreamstime
-    // FIX: Using non-greedy `.*?` to handle complex descriptions.
     { site: 'dreamstime', regex: /dreamstime\.com\/.*?image([0-9]+)/i },
 
     // VectorStock
@@ -54,7 +51,6 @@ const parsers = [
     { site: 'motionarray', regex: /motionarray\.com\/[a-zA-Z0-9-]+\/[a-zA-Z0-9-]+-([0-9]+)/i },
 
     // Alamy
-    // FIX: Using non-greedy `.+?` to handle complex descriptions.
     { site: 'alamy', regex: /alamy\.com\/.+?-([A-Z0-9]+)\.html/i },
 
     // Storyblocks
@@ -63,36 +59,27 @@ const parsers = [
 
 /**
  * Parses a stock media URL to extract the site name and the media ID.
- * @param url The full URL of the stock media page.
- * @returns An object containing the site and id.
- * @throws An error if the URL is invalid or from an unsupported provider.
  */
 const parseStockUrl = (url: string): { site: string; id: string } => {
     try {
-        // Ensure the URL has a protocol for the URL constructor to work correctly.
         const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-        new URL(fullUrl); // This is just to validate that the URL format is generally correct.
+        new URL(fullUrl);
 
         for (const parser of parsers) {
             const match = fullUrl.match(parser.regex);
             if (match && match[1]) {
-                // The API expects 'istockphoto' for images, let's stick to the key from the list.
                 return { site: parser.site, id: match[1] };
             }
         }
     } catch (e) {
-         // This catch block handles errors from `new URL()` for malformed URLs.
          throw new Error('Invalid URL format.');
     }
 
     throw new Error('Could not parse the stock media ID from the URL or the site is not supported.');
 };
 
-
 /**
  * Fetches metadata for a stock media file from a given URL.
- * @param url The URL of the stock media.
- * @returns A promise resolving to the stock file's information.
  */
 export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   console.log('🔍 Parsing URL:', url);
@@ -103,19 +90,25 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   const responseData = await apiFetch(`/stockinfo/${site}/${id}`);
 
   console.log('📦 Raw API Response:', responseData);
+  console.log('📊 Response data type:', typeof responseData.data, 'Is array?', Array.isArray(responseData.data));
 
-  // ✅ FIX: Check if response explicitly indicates failure
+  // Check if response explicitly indicates failure
   if (responseData.success === false) {
+    console.log('❌ API returned success: false');
     throw new Error(responseData.message || 'Could not retrieve file details.');
   }
 
-  // ✅ FIX: Check if data is an empty array (file unavailable)
+  // Check if data is an empty array (file unavailable)
   if (Array.isArray(responseData.data)) {
+    console.log('📋 Data is an array with length:', responseData.data.length);
+    
     if (responseData.data.length === 0) {
       throw new Error('This file is not available for download. It may have been removed or is not supported by the API.');
     }
+    
     // If data is a non-empty array, take the first item
     const data = responseData.data[0];
+    console.log('✅ Using first item from array:', data);
     
     const costValue = data.cost ?? data.price;
     const previewUrl = data.preview || data.thumb || data.thumb_lg;
@@ -128,7 +121,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
 
     return {
       id: data.id,
-      site: data.site,
+      site: data.site || site,
       preview: previewUrl,
       cost: !isNaN(parsedCost) ? parsedCost : null,
       title: data.title || data.name,
@@ -142,26 +135,32 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
 
   // Handle cases where data is nested inside a 'data' property (as an object)
   const data = responseData.data || responseData;
+  console.log('📦 Extracted data object:', data);
 
-  // ✅ FIX: Final validation - ensure data is an object with required fields
+  // Final validation - ensure data is an object with required fields
   if (typeof data !== 'object' || data === null) {
+    console.log('❌ Data is not a valid object');
     throw new Error('The API returned an invalid response format. Please try again or contact support.');
   }
 
   const costValue = data.cost ?? data.price;
   const previewUrl = data.preview || data.thumb || data.thumb_lg;
 
+  console.log('🔍 Validation - Preview:', previewUrl, 'ID:', data.id, 'Cost:', costValue);
+
   // Validate the response to prevent showing an empty modal.
   if (!previewUrl || !data.id) {
+    console.log('❌ Missing required fields - preview or id');
     throw new Error('Could not retrieve file details. The URL might be incorrect or the file is unavailable.');
   }
   
-  // Robustly parse the cost, which might be a string or number.
   const parsedCost = parseFloat(costValue);
+
+  console.log('✅ Returning StockFileInfo');
 
   return {
     id: data.id,
-    site: data.site,
+    site: data.site || site,
     preview: previewUrl,
     cost: !isNaN(parsedCost) ? parsedCost : null,
     title: data.title || data.name,
@@ -173,12 +172,8 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   };
 };
 
-
 /**
  * Places an order to download a stock media file.
- * @param site The stock media provider (e.g., 'shutterstock').
- * @param id The ID of the media file.
- * @returns A promise resolving to the order details, including a task_id.
  */
 export const orderStockFile = async (site: string, id: string): Promise<StockOrder> => {
     return apiFetch(`/stockorder/${site}/${id}`);
@@ -186,8 +181,6 @@ export const orderStockFile = async (site: string, id: string): Promise<StockOrd
 
 /**
  * Checks the status of a previously placed order.
- * @param taskId The task_id received from ordering the file.
- * @returns A promise resolving to the current order status.
  */
 export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
     return apiFetch(`/order/${taskId}/status`);
@@ -195,20 +188,15 @@ export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
 
 /**
  * Generates the final download link for a completed order.
- * @param taskId The task_id of the order with 'ready' status.
- * @returns A promise resolving to an object containing the download URL.
  */
 export const generateDownloadLink = async (taskId: string): Promise<StockDownloadLink> => {
-    // Note: API documentation specifies v2 for this endpoint.
     return apiFetch(`/v2/order/${taskId}/download`);
 }
 
 /**
  * Retrieves the list of supported stock media websites and their costs.
- * @returns A promise resolving to an array of supported sites.
  */
 export const getSupportedSites = async (): Promise<SupportedSite[]> => {
-  // This data is extracted from the provided HTML source for nehtw.com
   const sites = [
     { key: 'adobestock', name: 'adobestock', cost: 0.4, icon: 'adobestock.png' },
     { key: 'pixelbuddha', name: 'pixelbuddha', cost: 0.6, icon: 'pixelbuddha.png' },
