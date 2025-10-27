@@ -1,0 +1,4 @@
+Build timestamp: 2025-10-27T16:15:00Z
+Force complete rebuild - all caches cleared
+New Supabase project: gvipnadjxnjznjzvxqvg
+
