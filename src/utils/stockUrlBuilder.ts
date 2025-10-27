@@ -15,7 +15,7 @@ export const buildStockMediaUrl = (site: string, id: string): string | null => {
     
     // Dreamstime
     if (siteKey === 'dreamstime') {
-        return `https://www.dreamstime.com/image${id}`;
+        return `https://www.dreamstime.com/image/${id}`;
     }
     
     // Adobe Stock

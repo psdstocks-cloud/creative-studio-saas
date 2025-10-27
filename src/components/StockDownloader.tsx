@@ -109,11 +109,7 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
                 return newSet;
             });
         }
-    };
-    
-    
-    
-    
+    };    
 
     if (orders.length === 0) return null;
 
@@ -266,7 +262,7 @@ const StockDownloader = () => {
             }
             
             const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
-            const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo);
+            const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo, url);  // ← Add url parameter
             
             // Immediately add to recent orders for instant feedback
             setRecentOrders(prev => [newOrder, ...prev]);
@@ -363,7 +359,8 @@ const StockDownloader = () => {
             
             const orderPromises = filesToOrder.map(file =>
                 orderStockFile(file.site, file.id)
-                    .then(orderResult => createOrder(user.id, orderResult.task_id, file))
+                    .then(orderResult => createOrder(user.id, orderResult.task_id, file, file.sourceUrl))  // ← Add sourceUrl
+
                     .catch(err => {
                         console.error(`Failed to order file ${file.id}`, err);
                         return null; // Return null for failed orders

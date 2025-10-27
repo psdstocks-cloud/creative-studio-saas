@@ -24,13 +24,13 @@ export interface StockFileInfo {
   site: string;
   preview: string;
   cost: number | null;
-  // Fix: Add optional properties to support detailed file views.
   title?: string;
   name?: string;
   author?: string;
   ext?: string;
   sizeInBytes?: number | string;
   debugid?: string;
+  source_url?: string;  // ← Add this
 }
 
 export interface StockOrder {
@@ -51,7 +51,6 @@ export interface StockDownloadLink {
       download_url?: string;
   };
 }
-
 
 export interface SupportedSite {
   key: string;

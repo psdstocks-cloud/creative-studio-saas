@@ -9,29 +9,28 @@ import type { Order, StockFileInfo } from '../types';
  * @param fileInfo The metadata of the file being ordered.
  * @returns The newly created or updated order record.
  */
-export const createOrder = async (userId: string, taskId: string, fileInfo: StockFileInfo): Promise<Order> => {
+export const createOrder = async (
+  userId: string,
+  taskId: string,
+  fileInfo: StockFileInfo,
+  sourceUrl?: string  // ← Add this parameter
+): Promise<Order> => {
   const { data, error } = await supabase
-    .from('stock_order')
-    .upsert({
-      user_id: userId,
-      task_id: taskId,
-      file_info: fileInfo,
-      status: 'processing',
-      // Explicitly set the timestamp to "restart" the order on conflict.
-      created_at: new Date().toISOString(),
-      // Reset download_url in case this is a re-order of a previously completed task.
-      download_url: null, 
-    }, {
-      onConflict: 'task_id',
-    })
-    .select()
-    .single();
+      .from('stock_order')
+      .insert({
+          user_id: userId,
+          task_id: taskId,
+          file_info: {
+              ...fileInfo,
+              source_url: sourceUrl  // ← Store the original URL
+          },
+          status: 'processing'
+      })
+      .select()
+      .single();
 
-  if (error) {
-    console.error("Error upserting order:", error);
-    throw new Error('Could not save the order to your account.');
-  }
-  return data as Order;
+  if (error) throw new Error(`Failed to create order: ${error.message}`);
+  return data;
 };
 
 

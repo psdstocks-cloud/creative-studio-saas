@@ -196,59 +196,65 @@ const FilesManager = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-gray-800/50 divide-y divide-gray-700">
-                        {filteredOrders.map(order => (
-                            <tr key={order.id}>
-                                <td className="px-6 py-4 whitespace-nowrap"><img src={order.file_info.preview} alt="preview" className="w-16 h-10 rounded object-cover" /></td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                    {(() => {
-                                        const url = buildStockMediaUrl(order.file_info.site, order.file_info.id);
-                                        if (url) {
-                                            return (
-                                                <a 
-                                                    href={url} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="group hover:bg-gray-700/50 rounded-lg p-2 -m-2 transition-colors block"
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex-1">
-                                                            <div className="font-semibold text-blue-400 group-hover:text-blue-300 transition-colors">
-                                                                {order.file_info.site}
-                                                            </div>
-                                                            <div className="text-xs text-gray-400 font-mono">{order.file_info.id}</div>
+                        {filteredOrders.map(order => {
+                            // Try to get URL from source_url first, fallback to buildStockMediaUrl
+                            const stockUrl = order.file_info.source_url || buildStockMediaUrl(order.file_info.site, order.file_info.id);
+                            
+                            return (
+                                <tr key={order.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {stockUrl ? (
+                                            <a href={stockUrl} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80 transition-opacity">
+                                                <img src={order.file_info.preview} alt="preview" className="w-16 h-10 rounded object-cover" />
+                                            </a>
+                                        ) : (
+                                            <img src={order.file_info.preview} alt="preview" className="w-16 h-10 rounded object-cover" />
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                        {stockUrl ? (
+                                            <a 
+                                                href={stockUrl} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="group hover:bg-gray-700/50 rounded-lg p-2 -m-2 transition-colors block"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex-1">
+                                                        <div className="font-semibold text-blue-400 group-hover:text-blue-300 transition-colors">
+                                                            {order.file_info.site}
                                                         </div>
-                                                        <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100" />
+                                                        <div className="text-xs text-gray-400 font-mono">{order.file_info.id}</div>
                                                     </div>
-                                                </a>
-                                            );
-                                        }
-                                        // Fallback if URL cannot be generated
-                                        return (
+                                                    <ArrowTopRightOnSquareIcon className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100" />
+                                                </div>
+                                            </a>
+                                        ) : (
                                             <div>
                                                 <div className="font-semibold text-gray-300">{order.file_info.site}</div>
                                                 <div className="text-xs text-gray-400 font-mono">{order.file_info.id}</div>
                                             </div>
-                                        );
-                                    })()}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(order.created_at).toLocaleDateString()}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{order.file_info.cost?.toFixed(2)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-400">{order.file_info.debugid || 'N/A'}</td>
-                                <td className="px-6 py-4 whitespace-nowrap"><StatusIndicator status={order.status} /></td>
-                                <td className="px-6 py-4 whitespace-nowrap text-end">
-                                    {order.status === 'ready' && (
-                                        <button
-                                            onClick={() => handleDownload(order.task_id)}
-                                            disabled={downloading.has(order.task_id)}
-                                            className="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-wait transition-colors flex items-center text-sm"
-                                        >
-                                            {downloading.has(order.task_id) ? <ArrowPathIcon className="w-4 h-4 animate-spin me-2" /> : <ArrowDownTrayIcon className="w-4 h-4 me-2" />}
-                                            {t('downloadNow')}
-                                        </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{new Date(order.created_at).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{order.file_info.cost?.toFixed(2)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-400">{order.file_info.debugid || 'N/A'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><StatusIndicator status={order.status} /></td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-end">
+                                        {order.status === 'ready' && (
+                                            <button
+                                                onClick={() => handleDownload(order.task_id)}
+                                                disabled={downloading.has(order.task_id)}
+                                                className="bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-wait transition-colors flex items-center text-sm"
+                                            >
+                                                {downloading.has(order.task_id) ? <ArrowPathIcon className="w-4 h-4 animate-spin me-2" /> : <ArrowDownTrayIcon className="w-4 h-4 me-2" />}
+                                                {t('downloadNow')}
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
