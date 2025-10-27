@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npm install && npm run build",
+  "buildCommand": "rm -rf dist && npm install && npm run build",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "framework": "vite",
+  "buildId": "v2-fresh"
 }
