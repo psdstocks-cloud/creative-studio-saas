@@ -44,7 +44,7 @@ const parsers = [
     { site: 'envato', regex: /elements\.envato\.com\/(?:[a-z-]+\/)+[a-zA-Z0-9-]+-([A-Z0-9]+)/i },
 
     // Dreamstime
-    { site: 'dreamstime', regex: /dreamstime\.com\/[a-z-]+-image([0-9]+)/i },
+    { site: 'dreamstime', regex: /dreamstime\.com\/.*-image([0-9]+)/i },
 
     // VectorStock
     { site: 'vectorstock', regex: /vectorstock\.com\/[a-z-]+\/[a-z-]+-([0-9]+)/i },
