@@ -30,38 +30,75 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return null;
     }
     
-    const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('id', session.user.id)
-        .single();
-    
-    if (profileError) {
-        console.error("AuthProvider: Error fetching user profile:", profileError.message);
-        return null;
+    try {
+        // Add timeout to profile fetch
+        const profilePromise = supabase
+            .from('profiles')
+            .select('balance')
+            .eq('id', session.user.id)
+            .single();
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Profile fetch timeout')), 3000);
+        });
+
+        const { data: profile, error: profileError } = await Promise.race([
+            profilePromise,
+            timeoutPromise
+        ]) as any;
+        
+        if (profileError) {
+            console.error("AuthProvider: Error fetching user profile:", profileError.message);
+            // Return user with default balance if profile fetch fails
+            return {
+                id: session.user.id,
+                email: session.user.email || 'No email found',
+                balance: 100, // Default balance
+            };
+        }
+        
+        return {
+            id: session.user.id,
+            email: session.user.email || 'No email found',
+            balance: profile?.balance ?? 100,
+        };
+    } catch (error) {
+        console.error("AuthProvider: Timeout or error fetching profile:", error);
+        // Return user with default balance on timeout
+        return {
+            id: session.user.id,
+            email: session.user.email || 'No email found',
+            balance: 100,
+        };
     }
-    
-    return {
-        id: session.user.id,
-        email: session.user.email || 'No email found',
-        balance: profile?.balance ?? 0,
-    };
   }, []);
 
   useEffect(() => {
     let mounted = true;
+    let timeoutId: NodeJS.Timeout;
 
     async function initializeAuth() {
         try {
+            // Set a timeout to force loading to false after 5 seconds
+            timeoutId = setTimeout(() => {
+                if (mounted) {
+                    console.warn("Auth initialization timed out after 5 seconds");
+                    setIsLoading(false);
+                }
+            }, 5000);
+
             const { data: { session } } = await supabase.auth.getSession();
+            
             if (mounted) {
                 const appUser = await getAppUserFromSession(session);
                 setUser(appUser);
+                clearTimeout(timeoutId);
             }
         } catch (e) {
             console.error("AuthProvider: Error initializing auth", e);
         } finally {
             if (mounted) {
+                clearTimeout(timeoutId);
                 setIsLoading(false);
             }
         }
@@ -80,6 +117,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     return () => {
         mounted = false;
+        if (timeoutId) clearTimeout(timeoutId);
         subscription.unsubscribe();
     };
   }, [getAppUserFromSession]);
