@@ -11,6 +11,7 @@ import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
 import AuthCallback from './components/AuthCallback';
 import FilesManager from './components/FilesManager';
+import ResetPassword from './components/ResetPassword';
 
 const App = () => {
   const { language } = useLanguage();
@@ -33,6 +34,7 @@ const App = () => {
     return (
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
     );

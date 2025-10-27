@@ -132,7 +132,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const sendPasswordResetEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/reset-password`,
     });
     if (error) {
         console.error('Password reset error:', error.message);
