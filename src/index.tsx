@@ -33,8 +33,11 @@ if (!config.supabase.isAvailable) {
     </React.StrictMode>
   );
 } else {
+  // Disable StrictMode in production to avoid double-mounting issues
+  const AppWrapper = import.meta.env.DEV ? React.StrictMode : React.Fragment;
+  
   root.render(
-    <React.StrictMode>
+    <AppWrapper>
       <HashRouter>
         <LanguageProvider>
           <AuthProvider>
@@ -42,6 +45,6 @@ if (!config.supabase.isAvailable) {
           </AuthProvider>
         </LanguageProvider>
       </HashRouter>
-    </React.StrictMode>
+    </AppWrapper>
   );
 }
