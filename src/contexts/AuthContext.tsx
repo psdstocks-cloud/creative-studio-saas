@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
     
     try {
-        // Add timeout to profile fetch
+        // Fetch profile with increased timeout
         const profilePromise = supabase
             .from('profiles')
             .select('balance')
@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .single();
 
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Profile fetch timeout')), 3000);
+            setTimeout(() => reject(new Error('Profile fetch timeout')), 10000); // Increased to 10 seconds
         });
 
         const { data: profile, error: profileError } = await Promise.race([
@@ -49,27 +49,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         if (profileError) {
             console.error("AuthProvider: Error fetching user profile:", profileError.message);
-            // Return user with default balance if profile fetch fails
-            return {
-                id: session.user.id,
-                email: session.user.email || 'No email found',
-                balance: 100, // Default balance
-            };
+            
+            // CRITICAL FIX: Don't create profile automatically if it doesn't exist
+            // This was causing the balance reset bug
+            if (profileError.code === 'PGRST116') {
+                // Profile doesn't exist - create it with 100 balance (new user)
+                console.log("Creating new profile for user:", session.user.id);
+                const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert([{ id: session.user.id, balance: 100 }]);
+                
+                if (insertError) {
+                    console.error("Error creating profile:", insertError.message);
+                    throw new Error("Could not create user profile");
+                }
+                
+                return {
+                    id: session.user.id,
+                    email: session.user.email || 'No email found',
+                    balance: 100,
+                };
+            }
+            
+            // For other errors, throw to prevent login
+            throw new Error(`Profile fetch failed: ${profileError.message}`);
         }
         
         return {
             id: session.user.id,
             email: session.user.email || 'No email found',
-            balance: profile?.balance ?? 100,
+            balance: Number(profile?.balance ?? 100), // Convert to number to handle numeric type
         };
-    } catch (error) {
-        console.error("AuthProvider: Timeout or error fetching profile:", error);
-        // Return user with default balance on timeout
-        return {
-            id: session.user.id,
-            email: session.user.email || 'No email found',
-            balance: 100,
-        };
+    } catch (error: any) {
+        console.error("AuthProvider: Error fetching profile:", error);
+        // Don't return default balance on error - throw instead
+        throw error;
     }
   }, []);
 
@@ -79,23 +93,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     async function initializeAuth() {
         try {
-            // Set a timeout to force loading to false after 5 seconds
+            // Set a timeout to force loading to false after 15 seconds
             timeoutId = setTimeout(() => {
                 if (mounted) {
-                    console.warn("Auth initialization timed out after 5 seconds");
+                    console.warn("Auth initialization timed out after 15 seconds");
                     setIsLoading(false);
                 }
-            }, 5000);
+            }, 15000); // Increased to 15 seconds
 
             const { data: { session } } = await supabase.auth.getSession();
             
             if (mounted) {
-                const appUser = await getAppUserFromSession(session);
-                setUser(appUser);
-                clearTimeout(timeoutId);
+                try {
+                    const appUser = await getAppUserFromSession(session);
+                    setUser(appUser);
+                    clearTimeout(timeoutId);
+                } catch (profileError) {
+                    // If profile fetch fails, log out the user to prevent showing incorrect balance
+                    console.error("Failed to load user profile, signing out:", profileError);
+                    await supabase.auth.signOut();
+                    setUser(null);
+                }
             }
         } catch (e) {
             console.error("AuthProvider: Error initializing auth", e);
+            setUser(null);
         } finally {
             if (mounted) {
                 clearTimeout(timeoutId);
