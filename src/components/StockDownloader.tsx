@@ -39,9 +39,9 @@ const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: 
             for (const order of processingOrders) {
                 try {
                     const statusResult = await checkOrderStatus(order.task_id);
-                     if (statusResult.status === 'ready' || statusResult.status === 'failed') {
-                       await updateOrder(order.task_id, { status: statusResult.status });
-                       onUpdate(order.task_id, statusResult.status);
+                    if (statusResult.status === 'ready' || statusResult.status === 'failed') {
+                        await updateOrder(order.task_id, { status: statusResult.status });
+                        onUpdate(order.task_id, statusResult.status);
                     }
                 } catch (err) {
                     console.error(`Failed to check status for ${order.task_id}`, err);
@@ -49,11 +49,12 @@ const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: 
                     onUpdate(order.task_id, 'failed');
                 }
             }
-        }, 5000); // Poll every 5 seconds
+        }, 5000);
 
         return () => clearInterval(interval);
     }, [orders, onUpdate]);
 };
+
 
 const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void }) => {
     const { t } = useLanguage();
@@ -64,29 +65,32 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
     const handleDownload = async (taskId: string) => {
         setDownloading(prev => new Set(prev).add(taskId));
         try {
-            console.log('🔽 Generating download link for task:', taskId);
+            console.log('🔽 Generating fresh download link for task:', taskId);
+            
+            // Always generate a fresh link (temporary links expire)
             const result = await generateDownloadLink(taskId);
             console.log('✅ Download link result:', result);
             
-            if (!result.url || result.url === '') {
+            if (!result || !result.url || result.url === '') {
                 throw new Error('Invalid download URL received from API');
             }
             
-            // Use window.location.href for direct download instead of window.open
-            // This prevents popup blockers and empty tabs
+            console.log('✅ Download URL:', result.url);
+            
+            // Create temporary link and trigger download
             const link = document.createElement('a');
             link.href = result.url;
-            link.download = ''; // Let the server determine the filename
+            link.download = ''; // Let server determine filename
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             
-            console.log('✅ Download initiated');
+            console.log('✅ Download initiated successfully');
         } catch (err: any) {
             console.error('❌ Download error:', err);
-            alert(err.message || 'Could not generate download link. Please try again.');
+            alert(err.message || 'Could not generate download link. The file may still be processing. Please wait a moment and try again.');
         } finally {
             setDownloading(prev => {
                 const newSet = new Set(prev);
@@ -95,6 +99,7 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
             });
         }
     };
+    
     
 
     if (orders.length === 0) return null;
