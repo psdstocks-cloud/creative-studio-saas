@@ -71,12 +71,13 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
             console.log('✅ Download link result:', result);
             console.log('📦 Result keys:', Object.keys(result));
             
-            // Handle different response formats from the API
+            // ✅ FIX: Add downloadLink to the list of possible field names
             const downloadUrl = 
+                result.downloadLink ||  // ← ADD THIS FIRST!
                 result.url || 
                 result.download_url || 
                 result.link || 
-                (result.data && (result.data.url || result.data.download_url));
+                (result.data && (result.data.url || result.data.download_url || result.data.downloadLink));
             
             console.log('🔗 Extracted URL:', downloadUrl);
             
@@ -108,7 +109,8 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
                 return newSet;
             });
         }
-    };    
+    };
+    
     
     
     

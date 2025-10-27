@@ -39,15 +39,19 @@ export interface StockOrder {
 }
 
 // ✅ UPDATED: Support multiple possible response formats from API
+// ✅ UPDATED: Support multiple possible response formats from API
 export interface StockDownloadLink {
-    url?: string;
-    download_url?: string;
-    link?: string;
-    data?: {
-        url?: string;
-        download_url?: string;
-    };
+  downloadLink?: string;
+  url?: string;
+  download_url?: string;
+  link?: string;
+  data?: {
+      downloadLink?: string;  // ← ADD THIS!
+      url?: string;
+      download_url?: string;
+  };
 }
+
 
 export interface SupportedSite {
   key: string;
