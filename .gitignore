@@ -29,3 +29,9 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+node_modules/
+dist/
+.cache/
+*.log
+.env
+.env.local
