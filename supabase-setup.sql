@@ -187,6 +187,9 @@ REVOKE ALL ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jso
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO authenticated;
 
+-- Make sure the PostgREST schema cache picks up the newly created functions.
+NOTIFY pgrst, 'reload schema';
+
 -- ============================================
 -- SETUP COMPLETE!
 -- ============================================
