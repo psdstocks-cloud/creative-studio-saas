@@ -44,6 +44,14 @@ export type InvoiceRow = {
 
 export interface BillingEnv extends SupabaseEnv {}
 
+export const isMissingTableError = (error: unknown, table: string) => {
+  const message = typeof (error as any)?.message === 'string' ? (error as any).message : '';
+  return /could not find the table/i.test(message) && message.includes(`public.${table}`);
+};
+
+const missingTableMessage = (table: string) =>
+  `Billing setup is incomplete. Missing required "${table}" table.`;
+
 export const PLAN_SELECT =
   'id,name,description,price_cents,currency,monthly_points,billing_interval,active';
 
@@ -113,6 +121,9 @@ export const loadPlanById = async (
     .maybeSingle<BillingPlanRow>();
 
   if (error) {
+    if (isMissingTableError(error, 'plans')) {
+      throw new Error(missingTableMessage('plans'));
+    }
     throw new Error(error.message || 'Unable to load plan.');
   }
   if (!data) {
@@ -130,6 +141,9 @@ export const listMonthlyPlans = async (supabase: ServiceSupabaseClient) => {
     .order('price_cents', { ascending: true });
 
   if (error) {
+    if (isMissingTableError(error, 'plans')) {
+      return [];
+    }
     throw new Error(error.message || 'Unable to load plans.');
   }
 
@@ -151,6 +165,9 @@ export const fetchCurrentSubscription = async (
     .maybeSingle<any>();
 
   if (error) {
+    if (isMissingTableError(error, 'subscriptions')) {
+      return null;
+    }
     throw new Error(error.message || 'Unable to load subscription.');
   }
 

@@ -1,6 +1,7 @@
 
 
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import Auth, { AuthView } from './Auth';
 import { SparklesIcon, ImageIcon, CodeBracketIcon, XMarkIcon } from './icons/Icons';
@@ -53,7 +54,13 @@ const LandingPage = () => {
             <header className="fixed top-0 left-0 right-0 z-40 p-4">
                 <div className="container mx-auto flex justify-between items-center p-4 rounded-xl glassmorphism">
                     <h1 className="text-2xl font-bold text-white">Creative<span className="text-blue-400">SaaS</span></h1>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                    <div className="flex items-center space-x-3 rtl:space-x-reverse">
+                        <Link
+                            to="/pricing"
+                            className="rounded-lg px-4 py-2 text-sm font-medium text-gray-200 transition-colors hover:text-white hover:bg-white/10"
+                        >
+                            {t('pricing')}
+                        </Link>
                         <button onClick={() => openModal('signIn')} className="text-white font-medium hover:text-blue-300 transition-colors px-4 py-2">{t('signIn')}</button>
                         <button onClick={() => openModal('signUp')} className="bg-blue-600 text-white font-bold py-2 px-5 rounded-lg hover:bg-blue-700 transition-colors">{t('signUp')}</button>
                     </div>

@@ -3,6 +3,7 @@ export const translations = {
     // General
     creativeSaaS: "CreativeSaaS",
     points: "Points",
+    pricing: "Pricing",
     // Sidebar
     home: "Home",
     stockFullSize: "Stock Full-Size",
@@ -43,6 +44,7 @@ export const translations = {
     stockDownloaderDesc: "Access and download high-quality stock photos and assets from various providers seamlessly.",
     aiImageGenerationDesc: "Bring your ideas to life. Generate stunning, unique images from simple text prompts with our advanced AI.",
     developerApiDesc: "Integrate our powerful features into your own applications with our simple and well-documented API.",
+    pricingDesc: "Compare plans and manage your CreativeSaaS subscription.",
     accountOverview: "Account Overview",
     addFunds: "Add Funds",
     // Stock Downloader
@@ -105,6 +107,7 @@ export const translations = {
     // General
     creativeSaaS: "كرييتف ساس",
     points: "نقاط",
+    pricing: "الأسعار",
     // Sidebar
     home: "الرئيسية",
     stockFullSize: "صور ستوك بالحجم الكامل",
@@ -145,6 +148,7 @@ export const translations = {
     stockDownloaderDesc: "احصل على صور ومواد ستوك عالية الجودة من مختلف المصادر بسلاسة.",
     aiImageGenerationDesc: "حوّل أفكارك إلى حقيقة. قم بإنشاء صور فريدة ومذهلة من نصوص بسيطة باستخدام الذكاء الاصطناعي المتقدم لدينا.",
     developerApiDesc: "قم بدمج ميزاتنا القوية في تطبيقاتك الخاصة من خلال واجهة برمجة التطبيقات البسيطة والموثقة جيدًا.",
+    pricingDesc: "قارن بين الباقات وأدر اشتراكك في كرييتف ساس.",
     accountOverview: "نظرة عامة على الحساب",
     addFunds: "إضافة رصيد",
     // Stock Downloader

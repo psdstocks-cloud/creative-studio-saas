@@ -1,6 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { HomeIcon, ImageIcon, SparklesIcon, CodeBracketIcon, ServerIcon, CogIcon, SignOutIcon } from './icons/Icons';
+import {
+  HomeIcon,
+  ImageIcon,
+  SparklesIcon,
+  CodeBracketIcon,
+  ServerIcon,
+  CogIcon,
+  SignOutIcon,
+  WalletIcon,
+} from './icons/Icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -20,6 +29,7 @@ const Sidebar = () => {
     { id: 'stock', label: t('stockFullSize'), icon: <ImageIcon />, path: '/stock' },
     { id: 'ai', label: t('aiGeneration'), icon: <SparklesIcon />, path: '/ai' },
     { id: 'api', label: t('api'), icon: <CodeBracketIcon />, path: '/api' },
+    { id: 'pricing', label: t('pricing'), icon: <WalletIcon />, path: '/pricing' },
   ];
 
   const otherItems = [

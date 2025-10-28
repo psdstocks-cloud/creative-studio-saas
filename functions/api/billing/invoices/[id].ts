@@ -4,6 +4,7 @@ import {
   handleUnexpectedError,
   INVOICE_WITH_ITEMS_SELECT,
   mapInvoice,
+  isMissingTableError,
 } from '../_shared';
 import type { BillingEnv } from '../_shared';
 
@@ -112,6 +113,9 @@ export const onRequest = async ({
       .maybeSingle();
 
     if (error) {
+      if (isMissingTableError(error, 'invoices')) {
+        return errorResponse(request, 404, 'Invoice not found.');
+      }
       throw new Error(error.message || 'Unable to load invoice.');
     }
 

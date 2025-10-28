@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { ImageIcon, SparklesIcon, CodeBracketIcon } from './icons/Icons';
+import { ImageIcon, SparklesIcon, CodeBracketIcon, WalletIcon } from './icons/Icons';
 
 interface FeatureCardProps {
     title: string;
@@ -46,7 +46,7 @@ const Home = () => {
             
             <section className="w-full max-w-5xl">
                 <h2 className="text-xl font-semibold text-white mb-6 text-center">{t('quickActions')}</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <FeatureCard
                         title={t('aiGeneration')}
                         description={t('aiImageGenerationDesc')}
@@ -64,6 +64,12 @@ const Home = () => {
                         description={t('developerApiDesc')}
                         icon={<CodeBracketIcon className="w-8 h-8 text-white" />}
                         onClick={() => navigate('/api')}
+                    />
+                    <FeatureCard
+                        title={t('pricing')}
+                        description={t('pricingDesc')}
+                        icon={<WalletIcon className="w-8 h-8 text-white" />}
+                        onClick={() => navigate('/pricing')}
                     />
                 </div>
             </section>
