@@ -41,7 +41,7 @@ const Home = () => {
                 <p className="text-lg text-gray-300 max-w-2xl mx-auto">
                    Welcome back, <span className="font-semibold text-blue-400">{user?.email}</span>!
                 </p>
-                 <p className="text-md text-gray-400 max-w-2xl mx-auto mt-2">{t('homeSubtitle')}</p>
+                 <p className="text-base text-gray-400 max-w-2xl mx-auto mt-2">{t('homeSubtitle')}</p>
             </div>
             
             <section className="w-full max-w-5xl">
