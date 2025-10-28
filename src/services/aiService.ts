@@ -28,37 +28,19 @@ export const createAiJob = async (prompt: string): Promise<CreateJobResponse> =>
  * @returns A promise resolving to the full AIJob object.
  */
 export const pollAiJob = async (getResultUrl: string): Promise<AiJob> => {
-    // This function uses native fetch because the URL is absolute and shouldn't
-    // be prefixed with the API_BASE_URL from the shared apiFetch utility.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for polling
+    const url = new URL(getResultUrl);
+    const endpoint = `${url.pathname.replace(/^\/api/, '')}${url.search}`;
 
-    try {
-        const response = await fetch(getResultUrl, {
-            // The API key is still required for the absolute URL endpoint.
-            headers: { 'X-Api-Key': 'A8K9bV5s2OX12E8cmS4I96mtmSNzv7' },
-            signal: controller.signal,
-        });
+    const data = await apiFetch(endpoint || '/', {
+        method: 'GET',
+        timeout: 15000,
+    });
 
-        if (!response.ok) {
-            throw new Error(`Polling failed: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        if (data.success === false) {
-            throw new Error(data.message || 'Polling request returned an error.');
-        }
-
-        return data as AiJob;
-
-    } catch (error: any) {
-        if (error.name === 'AbortError') {
-            throw new Error('Polling request timed out.');
-        }
-        throw error;
-    } finally {
-        clearTimeout(timeoutId);
+    if (data && typeof data === 'object' && 'success' in data && data.success === false) {
+        throw new Error((data as { message?: string }).message || 'Polling request returned an error.');
     }
+
+    return data as AiJob;
 };
 
 /**

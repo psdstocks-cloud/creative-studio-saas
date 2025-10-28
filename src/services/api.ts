@@ -1,6 +1,5 @@
 
-const API_KEY = 'A8K9bV5s2OX12E8cmS4I96mtmSNzv7';
-const API_BASE_URL = 'https://nehtw.com/api';
+const API_BASE_URL = '/api';
 
 interface ApiFetchOptions extends RequestInit {
   timeout?: number;
@@ -26,7 +25,6 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
   let finalEndpoint = endpoint;
 
   const headers: HeadersInit = {
-    'X-Api-Key': API_KEY,
     ...fetchOptions.headers,
   };
 
