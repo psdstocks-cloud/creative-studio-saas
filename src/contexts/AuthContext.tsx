@@ -207,8 +207,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     });
     if (error) {
         console.error('Password reset error:', error.message);
+        throw new Error(error.message || 'Could not send password reset email.');
     }
-    return Promise.resolve();
   }, []);
 
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
