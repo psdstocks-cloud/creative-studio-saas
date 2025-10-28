@@ -129,14 +129,14 @@ If you see:
 
 ### **External API Details**
 - **Base URL**: `https://nehtw.com/api`
-- **API Key**: `A8K9bV5s2OX12E8cmS4I96mtmSNzv7` (Hardcoded in `src/services/api.ts`)
+- **API Key**: Configure via the `STOCK_API_KEY` environment variable on the server
 - **Endpoint**: `/stockinfo/{site}/{id}`
 
 ### **Request Format**
 ```
 GET https://nehtw.com/api/stockinfo/dreamstime/377059337
 Headers:
-  X-Api-Key: A8K9bV5s2OX12E8cmS4I96mtmSNzv7
+  X-Api-Key: $STOCK_API_KEY
 ```
 
 ### **Expected Response**
