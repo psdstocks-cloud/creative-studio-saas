@@ -31,7 +31,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
     
     try {
-        // Fetch profile with increased timeout
+        console.log("Fetching profile for user:", session.user.id);
+        
+        // Fetch profile with timeout
         const profilePromise = supabase
             .from('profiles')
             .select('balance')
@@ -39,13 +41,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .single();
 
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Profile fetch timeout')), 10000); // Increased to 10 seconds
+            setTimeout(() => reject(new Error('Profile fetch timeout after 30 seconds')), 30000); // Increased to 30 seconds
         });
 
         const { data: profile, error: profileError } = await Promise.race([
             profilePromise,
             timeoutPromise
         ]) as any;
+        
+        console.log("Profile fetch completed:", { profile, error: profileError });
         
         if (profileError) {
             console.error("AuthProvider: Error fetching user profile:", profileError.message);
@@ -131,8 +135,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (_event, session) => {
             if (mounted) {
-                const appUser = await getAppUserFromSession(session);
-                setUser(appUser);
+                try {
+                    const appUser = await getAppUserFromSession(session);
+                    setUser(appUser);
+                } catch (profileError) {
+                    // If profile fetch fails during auth state change, sign out to prevent showing incorrect data
+                    console.error("Failed to load user profile during auth state change:", profileError);
+                    await supabase.auth.signOut();
+                    setUser(null);
+                }
             }
         }
     );
