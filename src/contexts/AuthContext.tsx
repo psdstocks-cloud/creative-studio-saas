@@ -38,6 +38,12 @@ const PROFILE_FETCH_TIMEOUT_MS = 30000;
 const PROFILE_FETCH_RETRY_DELAY_MS = 500;
 const MAX_PROFILE_FETCH_ATTEMPTS = 2;
 
+const buildFallbackUser = (sessionUser: Session['user']): User => ({
+  id: sessionUser.id,
+  email: sessionUser.email || 'No email found',
+  balance: 100,
+});
+
 const classifyPostgrestError = (error: PostgrestError | null): ProfileFetchFailureType => {
   if (!error) {
     return 'unknown';
@@ -93,6 +99,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.log("AuthProvider: Fetching profile for user", session.user.id);
 
         let lastError: ProfileFetchError | Error | null = null;
+        const fallbackUser = buildFallbackUser(session.user);
 
         for (let attempt = 1; attempt <= MAX_PROFILE_FETCH_ATTEMPTS; attempt++) {
             const abortController = new AbortController();
@@ -183,8 +190,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                         );
                         continue;
                     }
-
-                    throw errorToThrow;
+                    break;
                 }
 
                 console.log('AuthProvider: Successfully fetched profile for user', {
@@ -207,31 +213,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                         );
                         continue;
                     }
-
-                    throw createProfileFetchError('Profile fetch timeout after 30 seconds', 'timeout', {
+                    lastError = createProfileFetchError('Profile fetch timeout after 30 seconds', 'timeout', {
                         original: error,
                     });
+                    break;
                 }
 
                 console.error('AuthProvider: Unexpected exception during profile fetch', {
                     attempt,
                     error,
                 });
-                throw error;
+                lastError = error instanceof Error
+                    ? error
+                    : createProfileFetchError('Profile fetch failed due to unexpected exception', 'unknown', {
+                        original: error,
+                    });
+                break;
             } finally {
                 clearTimeout(timeoutId);
             }
         }
 
         if (lastError) {
-            throw lastError;
+            const failureType = (lastError as ProfileFetchError)?.failureType ?? 'unknown';
+            console.warn('AuthProvider: Falling back to default profile after fetch failures', {
+                userId: session.user.id,
+                failureType,
+            });
+            return fallbackUser;
         }
 
-        throw createProfileFetchError('Profile fetch failed for unknown reasons', 'unknown');
+        console.warn('AuthProvider: Profile fetch returned no data, using fallback profile', {
+            userId: session.user.id,
+        });
+        return fallbackUser;
     } catch (error: any) {
         console.error("AuthProvider: Error fetching profile:", error);
-        // Don't return default balance on error - throw instead
-        throw error;
+        return session?.user ? buildFallbackUser(session.user) : null;
     }
   }, []);
 
@@ -260,14 +278,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                     const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
                     console.error("Failed to load user profile:", profileError);
 
-                    if (failureType === 'timeout' || failureType === 'permission') {
-                        console.warn('AuthProvider: Preserving Supabase session despite profile fetch failure', {
+                    if (session?.user) {
+                        console.warn('AuthProvider: Using fallback profile during initialization due to fetch failure', {
                             failureType,
+                            userId: session.user.id,
                         });
-                        setUser(null);
-                    } else {
+                        setUser(buildFallbackUser(session.user));
+                    } else if (failureType !== 'timeout' && failureType !== 'permission') {
                         console.warn('AuthProvider: Signing out due to unrecoverable profile fetch error');
                         await supabase.auth.signOut();
+                        setUser(null);
+                    } else {
                         setUser(null);
                     }
                 }
@@ -295,14 +316,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                     const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
                     console.error("Failed to load user profile during auth state change:", profileError);
 
-                    if (failureType === 'timeout' || failureType === 'permission') {
-                        console.warn('AuthProvider: Retaining Supabase session after auth state change error', {
+                    if (session?.user) {
+                        console.warn('AuthProvider: Using fallback profile after auth state change failure', {
                             failureType,
+                            userId: session.user.id,
                         });
-                        setUser(null);
-                    } else {
+                        setUser(buildFallbackUser(session.user));
+                    } else if (failureType !== 'timeout' && failureType !== 'permission') {
                         console.warn('AuthProvider: Signing out after auth state change due to profile fetch error');
                         await supabase.auth.signOut();
+                        setUser(null);
+                    } else {
                         setUser(null);
                     }
                 }
@@ -324,10 +348,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       throw new Error(error.message || "Invalid credentials. Please try again.");
     }
 
+    let session: Session | null = data.session ?? null;
+
     try {
       // Ensure the user's profile can be fetched right after sign-in so any
       // profile-related issues surface immediately instead of silently failing.
-      const session = data.session ?? (await supabase.auth.getSession()).data.session;
+      session = session ?? (await supabase.auth.getSession()).data.session;
 
       if (!session) {
         throw new Error('No active session found after sign in.');
@@ -339,6 +365,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (profileError: any) {
       const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
       console.error('AuthProvider: Failed to resolve profile after sign in', profileError);
+
+      if (session?.user) {
+        console.warn('AuthProvider: Using fallback profile after sign-in due to profile error', {
+          failureType,
+          userId: session.user.id,
+        });
+        setUser(buildFallbackUser(session.user));
+        return;
+      }
 
       if (failureType !== 'timeout' && failureType !== 'permission') {
         await supabase.auth.signOut();
