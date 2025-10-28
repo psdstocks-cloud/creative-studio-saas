@@ -31,17 +31,20 @@ ALTER TABLE profiles
   DROP CONSTRAINT IF EXISTS profiles_balance_non_negative,
   ADD CONSTRAINT profiles_balance_non_negative CHECK (balance >= 0);
 
--- Step 5: Secure function for deducting points that enforces non-negative amounts
 CREATE OR REPLACE FUNCTION public.deduct_points(amount_to_deduct numeric)
-RETURNS profiles AS $$
+RETURNS public.profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
-  updated_profile profiles;
+  updated_profile public.profiles;
 BEGIN
   IF amount_to_deduct IS NULL OR amount_to_deduct < 0 THEN
     RAISE EXCEPTION 'Amount to deduct must be non-negative';
   END IF;
 
-  UPDATE profiles
+  UPDATE public.profiles
     SET balance = balance - amount_to_deduct,
         updated_at = NOW()
     WHERE id = auth.uid()
@@ -54,7 +57,7 @@ BEGIN
 
   RETURN updated_profile;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Step 6: Server-side helpers for order placement (used by the backend only)
 CREATE OR REPLACE FUNCTION public.secure_deduct_balance(p_user_id uuid, p_amount numeric)

@@ -8,15 +8,19 @@ ALTER TABLE profiles
 
 -- Function to safely deduct points without allowing negative amounts
 CREATE OR REPLACE FUNCTION public.deduct_points(amount_to_deduct numeric)
-RETURNS profiles AS $$
+RETURNS public.profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
-    updated_profile profiles;
+    updated_profile public.profiles;
 BEGIN
     IF amount_to_deduct IS NULL OR amount_to_deduct < 0 THEN
         RAISE EXCEPTION 'Amount to deduct must be non-negative';
     END IF;
 
-    UPDATE profiles
+    UPDATE public.profiles
         SET balance = balance - amount_to_deduct,
             updated_at = NOW()
         WHERE id = auth.uid()
@@ -29,4 +33,4 @@ BEGIN
 
     RETURN updated_profile;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
