@@ -20,13 +20,43 @@ CREATE POLICY "Users can view own profile"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
--- Step 4: Create policy to allow users to update their own profile  
+-- Step 4: Create policy to allow users to update their own profile
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   USING (auth.uid() = id);
 
--- Step 5: Function to automatically create profile when user signs up
+-- Step 4b: Ensure balances never become negative
+ALTER TABLE profiles
+  DROP CONSTRAINT IF EXISTS profiles_balance_non_negative,
+  ADD CONSTRAINT profiles_balance_non_negative CHECK (balance >= 0);
+
+-- Step 5: Secure function for deducting points that enforces non-negative amounts
+CREATE OR REPLACE FUNCTION public.deduct_points(amount_to_deduct numeric)
+RETURNS profiles AS $$
+DECLARE
+  updated_profile profiles;
+BEGIN
+  IF amount_to_deduct IS NULL OR amount_to_deduct < 0 THEN
+    RAISE EXCEPTION 'Amount to deduct must be non-negative';
+  END IF;
+
+  UPDATE profiles
+    SET balance = balance - amount_to_deduct,
+        updated_at = NOW()
+    WHERE id = auth.uid()
+      AND balance >= amount_to_deduct
+    RETURNING * INTO updated_profile;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Insufficient balance or profile missing';
+  END IF;
+
+  RETURN updated_profile;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Step 6: Function to automatically create profile when user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -36,7 +66,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Step 6: Create trigger to call the function on new user signup
+-- Step 7: Create trigger to call the function on new user signup
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users

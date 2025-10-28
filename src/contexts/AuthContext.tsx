@@ -191,25 +191,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const deductPoints = useCallback(async (amount: number) => {
-    if (!user) throw new Error("User not authenticated");
-
-    const newBalance = Math.max(0, user.balance - amount);
-    
-    // Update the database first
-    const { error } = await supabase
-      .from('profiles')
-      .update({ balance: newBalance })
-      .eq('id', user.id);
-    
-    if (error) {
-      console.error("Error updating balance:", error.message);
-      throw new Error("Could not deduct points.");
+  const deductPoints = useCallback(async (amount: number): Promise<void> => {
+    if (amount < 0) {
+        throw new Error('Amount to deduct must be non-negative.');
     }
-    
-    // Then, update the local state for immediate UI feedback
-    setUser(prevUser => prevUser ? { ...prevUser, balance: newBalance } : null);
 
+    if (amount === 0) {
+        return;
+    }
+
+    if (!user) {
+        throw new Error("User not authenticated");
+    }
+
+    if (user.balance < amount) {
+        throw new Error('Insufficient points.');
+    }
+
+    const { data, error } = await supabase.rpc('deduct_points', { amount_to_deduct: amount });
+
+    if (error) {
+        console.error("Error deducting balance via RPC:", error.message);
+        throw new Error(error.message || "Could not deduct points.");
+    }
+
+    if (!data || typeof data.balance === 'undefined') {
+        throw new Error('Unexpected response while deducting points.');
+    }
+
+    setUser(prevUser => prevUser ? { ...prevUser, balance: Number(data.balance) } : prevUser);
   }, [user]);
 
   const sendPasswordResetEmail = useCallback(async (email: string): Promise<void> => {

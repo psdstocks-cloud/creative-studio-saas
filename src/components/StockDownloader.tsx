@@ -256,14 +256,19 @@ const StockDownloader = () => {
         setError(null);
 
         try {
-            // Deduct points first for non-free downloads to ensure transaction validity
-            if (!isReDownload) {
-                await deductPoints(cost);
-            }
-            
             const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
             const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo, url);  // ← Add url parameter
-            
+
+            if (!isReDownload && cost > 0) {
+                try {
+                    await deductPoints(cost);
+                } catch (deductError: any) {
+                    console.error('Failed to deduct points for single order:', deductError);
+                    await updateOrder(orderResult.task_id, { status: 'payment_failed' });
+                    throw deductError;
+                }
+            }
+
             // Immediately add to recent orders for instant feedback
             setRecentOrders(prev => [newOrder, ...prev]);
             handleStartNew();
@@ -271,10 +276,6 @@ const StockDownloader = () => {
         } catch (err: any) {
             setError(err.message || 'Could not place the order.');
             setState('error');
-             // Refund points if order failed after deduction
-            if (!isReDownload) {
-                await deductPoints(-cost); // Add points back
-            }
         }
     };
     
@@ -355,39 +356,45 @@ const StockDownloader = () => {
         setError(null);
         
         try {
-            await deductPoints(totalCost);
-            
-            const orderPromises = filesToOrder.map(file =>
-                orderStockFile(file.site, file.id)
-                    .then(orderResult => createOrder(user.id, orderResult.task_id, file, file.sourceUrl))  // ← Add sourceUrl
+            const successfulOrders: Order[] = [];
+            let failedCount = 0;
 
-                    .catch(err => {
-                        console.error(`Failed to order file ${file.id}`, err);
-                        return null; // Return null for failed orders
-                    })
-            );
+            for (const file of filesToOrder) {
+                try {
+                    const orderResult = await orderStockFile(file.site, file.id);
+                    const createdOrder = await createOrder(user.id, orderResult.task_id, file, file.sourceUrl);
 
-            const newOrders = (await Promise.all(orderPromises)).filter((o): o is Order => o !== null);
-            
-            const failedCount = filesToOrder.length - newOrders.length;
-            const refundedAmount = filesToOrder
-                .filter(file => !newOrders.some(o => o.file_info.id === file.id))
-                .reduce((sum, file) => sum + (file.isReDownload ? 0 : file.cost || 0), 0);
+                    const fileCost = file.isReDownload ? 0 : file.cost || 0;
+                    if (fileCost > 0) {
+                        try {
+                            await deductPoints(fileCost);
+                        } catch (deductError: any) {
+                            console.error(`Failed to deduct points for batch order ${file.id}`, deductError);
+                            await updateOrder(orderResult.task_id, { status: 'payment_failed' });
+                            throw deductError;
+                        }
+                    }
 
-            if (refundedAmount > 0) {
-                await deductPoints(-refundedAmount); // Refund
+                    successfulOrders.push(createdOrder);
+                } catch (error) {
+                    failedCount += 1;
+                    console.error(`Failed to order file ${file.id}`, error);
+                }
             }
 
             if (failedCount > 0) {
                 setError(t('batchOrderError', { count: failedCount }));
             }
-            
+
+            if (successfulOrders.length > 0) {
+                setRecentOrders(prev => [...successfulOrders, ...prev]);
+            }
+
             handleStartNew();
             refreshRecentOrders();
 
         } catch (err: any) {
             setError(err.message || "An unexpected error occurred during batch order.");
-            // If initial deduction fails, no need to refund.
         } finally {
             setIsOrderingBatch(false);
         }

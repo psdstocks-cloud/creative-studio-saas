@@ -108,6 +108,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deductPoints = useCallback(async (amount: number): Promise<void> => {
+    if (amount < 0) {
+        throw new Error('Amount to deduct must be non-negative.');
+    }
+
     setUser(currentUser => {
         if (!currentUser || currentUser.balance < amount) {
             throw new Error('Insufficient points.');
