@@ -71,6 +71,31 @@ const parseSupabaseUser = (payload: any): User | null => {
   return null;
 };
 
+const parseCookieHeader = (cookieHeader: string | null) => {
+  if (!cookieHeader) {
+    return {} as Record<string, string>;
+  }
+
+  return cookieHeader.split(';').reduce<Record<string, string>>((acc, part) => {
+    const [rawName, ...rawValue] = part.split('=');
+    if (!rawName) {
+      return acc;
+    }
+    const name = rawName.trim();
+    if (!name) {
+      return acc;
+    }
+    const value = rawValue.join('=');
+    acc[name] = decodeURIComponent(value ?? '');
+    return acc;
+  }, {});
+};
+
+const SUPABASE_ACCESS_COOKIE_PATTERNS = [
+  /^sb-[^-]+-access-token$/,
+  /^sb-[^-]+-auth-token$/,
+];
+
 export const getServiceSupabaseClient = (
   env: SupabaseEnv,
   accessToken?: string
@@ -97,6 +122,26 @@ export const extractAccessToken = (request: Request): string | null => {
   const authHeader = request.headers.get('authorization');
   if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
     return authHeader.slice(7).trim();
+  }
+
+  const cookies = parseCookieHeader(request.headers.get('cookie'));
+  for (const [name, value] of Object.entries(cookies)) {
+    const normalizedName = name.trim().toLowerCase();
+    if (!normalizedName) {
+      continue;
+    }
+    if (
+      normalizedName === 'sb-access-token' ||
+      normalizedName === 'sb-auth-token' ||
+      normalizedName === 'supabase-auth-token' ||
+      normalizedName === 'sb:token'
+    ) {
+      return value;
+    }
+
+    if (SUPABASE_ACCESS_COOKIE_PATTERNS.some((pattern) => pattern.test(normalizedName))) {
+      return value;
+    }
   }
   return null;
 };

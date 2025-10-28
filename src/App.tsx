@@ -12,6 +12,9 @@ import { useAuth } from './contexts/AuthContext';
 import AuthCallback from './components/AuthCallback';
 import FilesManager from './components/FilesManager';
 import ResetPassword from './components/ResetPassword';
+import Pricing from './pages/Pricing';
+import Billing from './pages/Billing';
+import Receipt from './pages/Receipt';
 
 const App = () => {
   const { language } = useLanguage();
@@ -35,6 +38,7 @@ const App = () => {
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
     );
@@ -51,6 +55,9 @@ const App = () => {
             <Route path="/ai" element={<AiGenerator />} />
             <Route path="/files" element={<FilesManager />} />
             <Route path="/api" element={<ApiDocumentation />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/dashboard/billing" element={<Billing />} />
+            <Route path="/billing/receipt/:id" element={<Receipt />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
