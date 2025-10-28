@@ -119,6 +119,16 @@ Password: TestPass123!
 
 ---
 
+## 🚧 Pending Production Actions (Manual)
+
+The following deployment checks could not be completed from the current environment because Cloudflare Pages and the live site are only accessible via the production accounts:
+
+1. **Purge Cloudflare Pages cache and redeploy** – Trigger this from the Cloudflare Pages dashboard to ensure the latest `BrowserRouter` build is active.
+2. **Verify `/stock` route while signed in** – Sign in on the deployed site, open `/stock`, and confirm the Stock Downloader renders. If a blank page appears, inspect the browser network panel to confirm `index.html` is returned for that route.
+3. **Confirm no `HashRouter` references remain** – If the hash fragment persists after the redeploy, search the deployed bundle for `HashRouter`. If found, re-run the production build/deploy pipeline to publish the latest assets.
+
+These steps require production credentials and a live browser session. Please perform them in the Cloudflare Pages dashboard and production environment to complete the rollout.
+
 ## 🐛 If It Still Shows Old URL
 
 The issue is **obl.ee's aggressive CDN caching**. Options:
