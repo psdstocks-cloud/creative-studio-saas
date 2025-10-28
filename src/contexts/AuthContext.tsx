@@ -167,11 +167,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [getAppUserFromSession]);
   
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
     if (error) {
       throw new Error(error.message || "Invalid credentials. Please try again.");
     }
-  }, []);
+
+    try {
+      // Ensure the user's profile can be fetched right after sign-in so any
+      // profile-related issues surface immediately instead of silently failing.
+      const session = data.session ?? (await supabase.auth.getSession()).data.session;
+
+      if (!session) {
+        throw new Error('No active session found after sign in.');
+      }
+
+      const appUser = await getAppUserFromSession(session);
+
+      setUser(appUser);
+    } catch (profileError: any) {
+      // If we can't fetch the profile, sign out to prevent a stuck state and
+      // surface the error to the caller so it can be displayed in the UI.
+      await supabase.auth.signOut();
+
+      const message = profileError?.message || 'Could not complete sign in.';
+      throw new Error(message);
+    }
+  }, [getAppUserFromSession]);
 
   const signUp = useCallback(async (email: string, password: string): Promise<void> => {
     const { error } = await supabase.auth.signUp({
