@@ -81,3 +81,8 @@ $$;
 revoke all on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) from public;
 grant execute on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) to service_role;
 grant execute on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) to authenticated;
+
+-- Ensure PostgREST becomes aware of the new function immediately. Without this the
+-- schema cache can serve stale metadata and the RPC call fails with
+-- "Could not find the function ... in the schema cache".
+notify pgrst, 'reload schema';

@@ -138,6 +138,9 @@ REVOKE ALL ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jso
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO authenticated;
 
+-- Force a schema cache refresh so the RPC endpoint becomes available immediately.
+NOTIFY pgrst, 'reload schema';
+
 -- Step 6: Function to automatically create profile when user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
