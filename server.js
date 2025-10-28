@@ -21,6 +21,21 @@ if (!STOCK_API_KEY) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.options('/api/auth/session', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || '*');
+  res.status(204).end();
+});
+
+app.get('/api/auth/session', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ user: null });
+});
+
 app.use('/api', async (req, res) => {
   if (!STOCK_API_KEY) {
     res.status(500).json({ message: 'Server is missing STOCK_API_KEY configuration.' });
