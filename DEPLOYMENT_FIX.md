@@ -21,14 +21,13 @@
 
 ## ✅ Fixes Applied
 
-### **Fix 1: Lazy Gemini API Initialization**
-**File**: `src/services/geminiService.ts`
+### **Fix 1: Secure Gemini Prompt Enhancement**
+**Files**: `src/services/geminiService.ts`, `functions/api/gemini/enhance.ts`
 
 **Changes**:
-- Changed from immediate initialization to lazy loading
-- API is now only initialized when `enhancePrompt()` is called
-- Added graceful fallback when API key is missing
-- Changed env var from `process.env.API_KEY` to `import.meta.env.VITE_GEMINI_API_KEY`
+- Gemini requests now flow through a Cloudflare Pages Function, so the API key never appears in the browser bundle.
+- The client calls `/api/gemini/enhance`, which gracefully falls back to the original prompt if the API key is unavailable.
+- Improved error handling to prevent crashes when the upstream API is unreachable.
 
 **Before**:
 ```typescript
@@ -37,16 +36,14 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); // ❌ Crashes imme
 
 **After**:
 ```typescript
-const getAI = () => {
-  if (!ai) {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn('Gemini API key not configured');
-      return null; // ✅ Graceful fallback
-    }
-    ai = new GoogleGenAI({ apiKey });
-  }
-  return ai;
+export const enhancePrompt = async (prompt: string, isThinkingMode: boolean) => {
+  const data = await apiFetch('/gemini/enhance', {
+    method: 'POST',
+    auth: true,
+    body: { prompt, isThinkingMode },
+  });
+
+  return data?.enhancedPrompt ?? prompt;
 };
 ```
 
@@ -78,13 +75,13 @@ If you want the AI prompt enhancement feature to work:
 1. Go to Cloudflare Dashboard
 2. Navigate to **Workers & Pages** → **creative-studio-saas** → **Settings** → **Environment Variables**
 3. Add:
-   - **Variable name**: `VITE_GEMINI_API_KEY`
-   - **Value**: `AIzaSyBt7PYiYMkx-myuW0dsQbXmIq7JIjrMKhA`
+   - **Variable name**: `GEMINI_API_KEY`
+   - **Value**: `<your Gemini API key>`
    - **Environment**: `Production`
 4. Click **Save**
 5. Redeploy (go to Deployments → View details → Retry deployment)
 
-**Note**: The app will work fine without this key - it just won't enhance AI prompts.
+**Note**: The key is consumed only by the secure backend function, so it never ships to the client bundle.
 
 ---
 

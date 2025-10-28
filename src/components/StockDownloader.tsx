@@ -160,7 +160,7 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
 
 const StockDownloader = () => {
     const { t } = useLanguage();
-    const { user, deductPoints } = useAuth();
+    const { user, updateUserBalance } = useAuth();
     
     const [mode, setMode] = useState<Mode>('single');
     
@@ -189,7 +189,7 @@ const StockDownloader = () => {
     const refreshRecentOrders = useCallback(async () => {
         if (user?.id) {
             try {
-                const orders = await getOrders(user.id);
+                const orders = await getOrders();
                 setRecentOrders(orders);
             } catch(err) {
                  console.error("Failed to refresh recent orders:", err);
@@ -226,13 +226,15 @@ const StockDownloader = () => {
         setSingleFileInfo(null);
         setPreviousOrder(null);
         
+        const trimmedUrl = url.trim();
+
         try {
-            const info = await getStockFileInfo(url);
+            const info = await getStockFileInfo(trimmedUrl);
             if (user) {
-                const prevOrder = await findOrderBySiteAndId(user.id, info.site, info.id);
-                setPreviousOrder(prevOrder);
+                const prevOrder = await findOrderBySiteAndId(info.site, info.id);
+                setPreviousOrder(prevOrder && prevOrder.status === 'ready' ? prevOrder : null);
             }
-            setSingleFileInfo(info);
+            setSingleFileInfo({ ...info, source_url: trimmedUrl });
             setState('info');
         } catch (err: any) {
             setError(err.message || t('fileFetchError'));
@@ -243,7 +245,7 @@ const StockDownloader = () => {
     const handleOrder = async () => {
         if (!singleFileInfo || !user) return;
 
-        const isReDownload = !!previousOrder;
+        const isReDownload = previousOrder?.status === 'ready';
         const cost = isReDownload ? 0 : singleFileInfo.cost;
 
         if (cost === null || user.balance < cost) {
@@ -255,18 +257,19 @@ const StockDownloader = () => {
         setState('ordering');
         setError(null);
 
+        const trimmedUrl = url.trim();
+
         try {
             const orderResult = await orderStockFile(singleFileInfo.site, singleFileInfo.id);
-            const newOrder = await createOrder(user.id, orderResult.task_id, singleFileInfo, url);  // ← Add url parameter
+            const { order: newOrder, balance } = await createOrder({
+                taskId: orderResult.task_id,
+                site: singleFileInfo.site,
+                stockId: singleFileInfo.id,
+                sourceUrl: trimmedUrl,
+            });
 
-            if (!isReDownload && cost > 0) {
-                try {
-                    await deductPoints(cost);
-                } catch (deductError: any) {
-                    console.error('Failed to deduct points for single order:', deductError);
-                    await updateOrder(orderResult.task_id, { status: 'payment_failed' });
-                    throw deductError;
-                }
+            if (typeof balance === 'number') {
+                updateUserBalance(balance);
             }
 
             // Immediately add to recent orders for instant feedback
@@ -299,8 +302,8 @@ const StockDownloader = () => {
         const results = await Promise.allSettled(
             uniqueUrls.map(async (u: string) => {
                 const info = await getStockFileInfo(u as string);
-                const prevOrder = user ? await findOrderBySiteAndId(user.id, info.site, info.id) : null;
-                return { ...info, sourceUrl: u, isReDownload: !!prevOrder };
+                const prevOrder = user ? await findOrderBySiteAndId(info.site, info.id) : null;
+                return { ...info, sourceUrl: u, isReDownload: prevOrder?.status === 'ready' };
             })
         );
         
@@ -362,17 +365,15 @@ const StockDownloader = () => {
             for (const file of filesToOrder) {
                 try {
                     const orderResult = await orderStockFile(file.site, file.id);
-                    const createdOrder = await createOrder(user.id, orderResult.task_id, file, file.sourceUrl);
+                    const { order: createdOrder, balance } = await createOrder({
+                        taskId: orderResult.task_id,
+                        site: file.site,
+                        stockId: file.id,
+                        sourceUrl: file.sourceUrl,
+                    });
 
-                    const fileCost = file.isReDownload ? 0 : file.cost || 0;
-                    if (fileCost > 0) {
-                        try {
-                            await deductPoints(fileCost);
-                        } catch (deductError: any) {
-                            console.error(`Failed to deduct points for batch order ${file.id}`, deductError);
-                            await updateOrder(orderResult.task_id, { status: 'payment_failed' });
-                            throw deductError;
-                        }
+                    if (typeof balance === 'number') {
+                        updateUserBalance(balance);
                     }
 
                     successfulOrders.push(createdOrder);

@@ -55,7 +55,7 @@ const FilesManager = () => {
         const fetchOrders = async () => {
             setIsLoading(true);
             try {
-                const userOrders = await getOrders(user.id);
+                const userOrders = await getOrders();
                 setOrders(userOrders);
             } catch (err: any) {
                 setError(err.message);
@@ -145,7 +145,8 @@ const FilesManager = () => {
             processing: { text: t('processingStatus'), icon: <ArrowPathIcon className="w-4 h-4 animate-spin" />, color: 'text-yellow-400' },
             ready: { text: t('readyStatus'), icon: <CheckCircleIcon className="w-4 h-4" />, color: 'text-green-400' },
             failed: { text: t('failedStatus'), icon: <XCircleIcon className="w-4 h-4" />, color: 'text-red-400' },
-        };
+            payment_failed: { text: t('failedStatus'), icon: <XCircleIcon className="w-4 h-4" />, color: 'text-red-400' },
+        } as const;
         const current = statusMap[status];
         return (
             <div className={`flex items-center space-x-2 rtl:space-x-reverse text-sm font-semibold ${current.color}`}>

@@ -86,7 +86,7 @@ Add these **3 variables**:
 |---------------|-------|-------|
 | `VITE_SUPABASE_URL` | `https://gvipnadjxnjznjzvxqvg.supabase.co` | Your new Supabase URL |
 | `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2aXBuYWRqeG5qem5qenZ4cXZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTQ1NTEsImV4cCI6MjA3NzA5MDU1MX0.KvK88ghUAa267HmKo03iiyEEoYPHDjc-Tt-Ht6Ehnl0` | Your Supabase anon key |
-| `VITE_GEMINI_API_KEY` | `AIzaSyBt7PYiYMkx-myuW0dsQbXmIq7JIjrMKhA` | Your Gemini API key |
+| `GEMINI_API_KEY` (optional) | `<your Gemini API key>` | Only needed if you want server-side prompt enhancement |
 
 **How to add**:
 1. Click **"+ Add variable"**

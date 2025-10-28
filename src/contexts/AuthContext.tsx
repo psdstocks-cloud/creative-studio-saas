@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, ReactNode, useCallback, use
 import { supabase } from '../services/supabaseClient';
 import type { User } from '../types';
 import type { Session } from '@supabase/supabase-js';
+import { deductBalance } from '../services/profileService';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +12,7 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => void;
   deductPoints: (amount: number) => Promise<void>;
+  updateUserBalance: (balance: number) => void;
   sendPasswordResetEmail: (email: string) => Promise<void>;
   resendConfirmationEmail: (email: string) => Promise<void>;
 }
@@ -213,6 +215,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  const updateUserBalance = useCallback((balance: number) => {
+    setUser(prevUser => (prevUser ? { ...prevUser, balance: Number(balance) } : prevUser));
+  }, []);
+
   const deductPoints = useCallback(async (amount: number): Promise<void> => {
     if (amount < 0) {
         throw new Error('Amount to deduct must be non-negative.');
@@ -230,19 +236,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error('Insufficient points.');
     }
 
-    const { data, error } = await supabase.rpc('deduct_points', { amount_to_deduct: amount });
+    try {
+      const result = await deductBalance(amount);
 
-    if (error) {
-        console.error("Error deducting balance via RPC:", error.message);
-        throw new Error(error.message || "Could not deduct points.");
-    }
-
-    if (!data || typeof data.balance === 'undefined') {
+      if (!result || typeof result.balance === 'undefined') {
         throw new Error('Unexpected response while deducting points.');
-    }
+      }
 
-    setUser(prevUser => prevUser ? { ...prevUser, balance: Number(data.balance) } : prevUser);
-  }, [user]);
+      updateUserBalance(result.balance);
+    } catch (error: any) {
+      console.error('Error deducting balance via API:', error);
+      throw new Error(error?.message || 'Could not deduct points.');
+    }
+  }, [user, updateUserBalance]);
 
   const sendPasswordResetEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -268,7 +274,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, sendPasswordResetEmail, resendConfirmationEmail }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, updateUserBalance, sendPasswordResetEmail, resendConfirmationEmail }}>
       {children}
     </AuthContext.Provider>
   );

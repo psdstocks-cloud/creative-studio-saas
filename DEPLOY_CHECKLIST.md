@@ -74,10 +74,10 @@ Name:  VITE_SUPABASE_ANON_KEY
 Value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2aXBuYWRqeG5qem5qenZ4cXZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTQ1NTEsImV4cCI6MjA3NzA5MDU1MX0.KvK88ghUAa267HmKo03iiyEEoYPHDjc-Tt-Ht6Ehnl0
 ```
 
-### Variable 3
+### Variable 3 (optional, server-side only)
 ```
-Name:  VITE_GEMINI_API_KEY
-Value: AIzaSyBt7PYiYMkx-myuW0dsQbXmIq7JIjrMKhA
+Name:  GEMINI_API_KEY
+Value: <your Gemini API key>
 ```
 
 ---

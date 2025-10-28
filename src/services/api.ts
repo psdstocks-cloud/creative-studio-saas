@@ -1,8 +1,11 @@
 
+import { supabase } from './supabaseClient';
+
 const API_BASE_URL = '/api';
 
 interface ApiFetchOptions extends RequestInit {
   timeout?: number;
+  auth?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body?: any; // Allow any body type for processing
 }
@@ -17,7 +20,7 @@ interface ApiFetchOptions extends RequestInit {
  * @returns A promise that resolves with the JSON response.
  */
 export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) => {
-  const { timeout = 30000, body, ...fetchOptions } = options;
+  const { timeout = 30000, body, auth = false, ...fetchOptions } = options;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -32,7 +35,27 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
     ...fetchOptions,
     headers,
     signal: controller.signal,
+    credentials: 'include',
   };
+
+  if (auth) {
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        throw new Error('You must be signed in to perform this action.');
+      }
+
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    } catch (authError: any) {
+      clearTimeout(timeoutId);
+      throw new Error(authError?.message || 'Unable to authenticate request.');
+    }
+  }
   
   const method = (config.method || 'GET').toUpperCase();
 
