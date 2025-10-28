@@ -72,7 +72,7 @@ export interface Order {
   user_id: string;
   task_id: string;
   file_info: StockFileInfo;
-  status: 'processing' | 'ready' | 'failed';
+  status: 'processing' | 'ready' | 'failed' | 'payment_failed';
   download_url: string | null;
 }
 
@@ -105,7 +105,7 @@ export interface Database {
           user_id: string;
           task_id: string;
           file_info: StockFileInfo;
-          status: "processing" | "ready" | "failed";
+          status: "processing" | "ready" | "failed" | "payment_failed";
           download_url?: string | null;
         };
         Update: Partial<Order>;

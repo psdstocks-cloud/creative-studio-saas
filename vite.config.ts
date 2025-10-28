@@ -27,11 +27,6 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     envPrefix: 'VITE_',
-    define: {
-      // We no longer expose Supabase URL/Key to the browser if auth is cookie-based.
-      // Keep only the keys that are intended for the client.
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
-    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
