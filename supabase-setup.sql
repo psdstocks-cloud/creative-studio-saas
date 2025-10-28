@@ -7,23 +7,23 @@ SET search_path = public;
 
 -- 1. Create profiles table
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT,
-  balance INTEGER NOT NULL DEFAULT 100,
+  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email      TEXT,
+  balance    INTEGER NOT NULL DEFAULT 100,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 2. Create stock_order table
 CREATE TABLE IF NOT EXISTS public.stock_order (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  task_id TEXT UNIQUE NOT NULL,
-  file_info JSONB NOT NULL,
-  status TEXT NOT NULL DEFAULT 'processing',
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  task_id      TEXT UNIQUE NOT NULL,
+  file_info    JSONB NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'processing',
   download_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 3. Indexes
@@ -32,11 +32,11 @@ CREATE INDEX IF NOT EXISTS idx_stock_order_task_id ON public.stock_order(task_id
 CREATE INDEX IF NOT EXISTS idx_stock_order_status  ON public.stock_order(status);
 
 -- 4. Enable RLS
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_order ENABLE ROW LEVEL SECURITY;
 
 -- 5. RLS Policies for profiles
-DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view own profile"  ON public.profiles;
 CREATE POLICY "Users can view own profile"
   ON public.profiles FOR SELECT
   USING (auth.uid() = id);
@@ -47,7 +47,7 @@ CREATE POLICY "Users can update own profile"
   USING (auth.uid() = id);
 
 -- 6. RLS Policies for stock_order
-DROP POLICY IF EXISTS "Users can view own orders" ON public.stock_order;
+DROP POLICY IF EXISTS "Users can view own orders"  ON public.stock_order;
 CREATE POLICY "Users can view own orders"
   ON public.stock_order FOR SELECT
   USING (auth.uid() = user_id);
@@ -81,7 +81,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
 
--- 8. Update updated_at helper & triggers
+-- 8. updated_at helper & triggers
 CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -104,7 +104,7 @@ CREATE TRIGGER update_stock_order_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION public.update_updated_at();
 
--- 9. Secure helpers for server-side balance and order handling
+-- 9. Secure helpers (server-only)
 CREATE OR REPLACE FUNCTION public.secure_deduct_balance(p_user_id uuid, p_amount numeric)
 RETURNS public.profiles
 LANGUAGE plpgsql
@@ -137,11 +137,11 @@ GRANT EXECUTE ON FUNCTION public.secure_deduct_balance(uuid, numeric) TO service
 GRANT EXECUTE ON FUNCTION public.secure_deduct_balance(uuid, numeric) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.secure_create_stock_order(
-  p_user_id  uuid,
-  p_task_id  text,
-  p_amount   numeric,
+  p_user_id   uuid,
+  p_task_id   text,
+  p_amount    numeric,
   p_file_info jsonb,
-  p_status   text DEFAULT 'processing'
+  p_status    text DEFAULT 'processing'
 )
 RETURNS public.stock_order
 LANGUAGE plpgsql
@@ -184,7 +184,7 @@ REVOKE ALL ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jso
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO authenticated;
 
--- 10. Make sure PostgREST picks up everything immediately
+-- 10. Ensure PostgREST picks up functions immediately
 SELECT pg_notify('pgrst', 'reload schema');
 
 -- ============================================

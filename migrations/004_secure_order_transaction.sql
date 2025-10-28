@@ -35,11 +35,11 @@ GRANT EXECUTE ON FUNCTION public.secure_deduct_balance(uuid, numeric) TO service
 GRANT EXECUTE ON FUNCTION public.secure_deduct_balance(uuid, numeric) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.secure_create_stock_order(
-  p_user_id  uuid,
-  p_task_id  text,
-  p_amount   numeric,
+  p_user_id   uuid,
+  p_task_id   text,
+  p_amount    numeric,
   p_file_info jsonb,
-  p_status   text DEFAULT 'processing'
+  p_status    text DEFAULT 'processing'
 )
 RETURNS public.stock_order
 LANGUAGE plpgsql
@@ -82,5 +82,5 @@ REVOKE ALL ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jso
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO authenticated;
 
--- Ensure PostgREST picks up the new/changed functions immediately
+-- Ensure PostgREST sees the new/changed functions immediately
 SELECT pg_notify('pgrst', 'reload schema');
