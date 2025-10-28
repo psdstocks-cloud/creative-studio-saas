@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { ArrowPathIcon, EnvelopeIcon, LockClosedIcon, EnvelopeCheckIcon } from './icons/Icons';
+import { ArrowPathIcon, EnvelopeIcon, LockClosedIcon, EnvelopeCheckIcon, EyeIcon, EyeSlashIcon } from './icons/Icons';
 
 interface SignUpProps {
     onSwitchToSignIn: () => void;
@@ -16,6 +16,8 @@ const SignUp = ({ onSwitchToSignIn }: SignUpProps) => {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const { signUp } = useAuth();
     const { t } = useLanguage();
 
@@ -96,14 +98,23 @@ const SignUp = ({ onSwitchToSignIn }: SignUpProps) => {
                            <LockClosedIcon className="w-5 h-5 text-gray-400" />
                         </div>
                         <input
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             id="password-signup"
                             value={password}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                             placeholder={t('password')}
-                            className="w-full ps-10 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full ps-10 pe-12 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                             required
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword((prev) => !prev)}
+                            className="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800"
+                            aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                            aria-pressed={showPassword}
+                        >
+                            {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                        </button>
                     </div>
                 </div>
                 <div>
@@ -113,14 +124,23 @@ const SignUp = ({ onSwitchToSignIn }: SignUpProps) => {
                            <LockClosedIcon className="w-5 h-5 text-gray-400" />
                         </div>
                         <input
-                            type="password"
+                            type={showConfirmPassword ? 'text' : 'password'}
                             id="confirm-password"
                             value={confirmPassword}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                             placeholder={t('confirmPassword')}
-                            className="w-full ps-10 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full ps-10 pe-12 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                             required
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword((prev) => !prev)}
+                            className="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800"
+                            aria-label={showConfirmPassword ? t('hidePassword') : t('showPassword')}
+                            aria-pressed={showConfirmPassword}
+                        >
+                            {showConfirmPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                        </button>
                     </div>
                 </div>
                 <button

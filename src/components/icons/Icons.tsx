@@ -163,6 +163,22 @@ export const LockClosedIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const EyeIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M3 12c2.5 -4 5.5 -6 9 -6s6.5 2 9 6c-2.5 4 -5.5 6 -9 6s-6.5 -2 -9 -6z" />
+    <circle cx="12" cy="12" r="2.5" />
+  </svg>
+);
+
+export const EyeSlashIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M3 12c2.5 -4 5.5 -6 9 -6s6.5 2 9 6c-2.5 4 -5.5 6 -9 6s-6.5 -2 -9 -6z" />
+    <line x1="4" y1="4" x2="20" y2="20" />
+  </svg>
+);
+
 export const EnvelopeCheckIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
