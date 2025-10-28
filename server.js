@@ -76,7 +76,8 @@ app.use(express.static(buildPath));
 
 // For any other GET request that doesn't match a static file, serve the main index.html.
 // This is the standard fallback for single-page applications, allowing React Router to handle routing.
-app.get('*', (req, res) => {
+// ✅ Works with Express 5 — catch-all for React SPA routes
+app.get('/*', (req, res) => {
   res.sendFile(path.join(buildPath, 'index.html'), (err) => {
     if (err) {
       console.error('Error sending index.html:', err);
@@ -84,6 +85,7 @@ app.get('*', (req, res) => {
     }
   });
 });
+
 
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
