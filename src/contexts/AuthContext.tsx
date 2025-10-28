@@ -32,23 +32,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     try {
         console.log("Fetching profile for user:", session.user.id);
-        
-        // Fetch profile with timeout
-        const profilePromise = supabase
-            .from('profiles')
-            .select('balance')
-            .eq('id', session.user.id)
-            .single();
 
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Profile fetch timeout after 30 seconds')), 30000); // Increased to 30 seconds
-        });
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+            abortController.abort();
+        }, 30000);
 
-        const { data: profile, error: profileError } = await Promise.race([
-            profilePromise,
-            timeoutPromise
-        ]) as any;
-        
+        let profile: { balance?: number | null } | null = null;
+        let profileError: { message: string; code?: string } | null = null;
+
+        try {
+            const response = await supabase
+                .from('profiles')
+                .select('balance')
+                .eq('id', session.user.id)
+                .abortSignal(abortController.signal)
+                .single();
+
+            profile = response.data;
+            profileError = response.error;
+        } catch (error: any) {
+            if (error?.name === 'AbortError') {
+                throw new Error('Profile fetch timeout after 30 seconds');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+
         console.log("Profile fetch completed:", { profile, error: profileError });
         
         if (profileError) {
@@ -93,7 +104,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     let mounted = true;
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     async function initializeAuth() {
         try {
