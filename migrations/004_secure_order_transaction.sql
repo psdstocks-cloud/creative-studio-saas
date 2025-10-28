@@ -31,6 +31,7 @@ $$;
 
 revoke all on function public.secure_deduct_balance(uuid, numeric) from public;
 grant execute on function public.secure_deduct_balance(uuid, numeric) to service_role;
+grant execute on function public.secure_deduct_balance(uuid, numeric) to authenticated;
 
 create or replace function public.secure_create_stock_order(
     p_user_id uuid,
@@ -79,3 +80,4 @@ $$;
 
 revoke all on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) from public;
 grant execute on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) to service_role;
+grant execute on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) to authenticated;
