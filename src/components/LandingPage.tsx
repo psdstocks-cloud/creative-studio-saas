@@ -2,38 +2,14 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import Auth, { AuthView } from './Auth';
-import { SparklesIcon, ImageIcon, CodeBracketIcon, XMarkIcon } from './icons/Icons';
+import type { AuthView } from './Auth';
+import AuthModal from './AuthModal';
+import { SparklesIcon, ImageIcon, CodeBracketIcon } from './icons/Icons';
 
 interface AuthModalState {
     isOpen: boolean;
     initialView: AuthView;
 }
-
-interface AuthModalProps {
-    modalState: AuthModalState;
-    onClose: () => void;
-}
-
-const AuthModal = ({ modalState, onClose }: AuthModalProps) => {
-    if (!modalState.isOpen) return null;
-
-    return (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 animate-fadeIn"
-            aria-modal="true"
-            role="dialog"
-            onClick={onClose}
-        >
-            <div className="relative" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                 <button onClick={onClose} className="absolute -top-4 -end-4 z-10 bg-gray-800 rounded-full p-1 text-white hover:bg-gray-700" aria-label="Close modal">
-                    <XMarkIcon />
-                </button>
-                <Auth initialView={modalState.initialView} />
-            </div>
-        </div>
-    );
-};
 
 const LandingPage = () => {
     const { t } = useLanguage();
@@ -110,7 +86,11 @@ const LandingPage = () => {
                 </div>
             </footer>
             
-            <AuthModal modalState={authModalState} onClose={closeModal} />
+            <AuthModal
+                isOpen={authModalState.isOpen}
+                initialView={authModalState.initialView}
+                onClose={closeModal}
+            />
         </div>
     );
 };

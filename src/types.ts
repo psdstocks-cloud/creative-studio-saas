@@ -65,6 +65,54 @@ export interface User {
   balance: number; // From our 'profiles' table
 }
 
+export interface BillingPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  currency: string;
+  monthly_points: number;
+  billing_interval: 'month' | 'one_time';
+  active?: boolean;
+}
+
+export interface BillingSubscription {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  trial_end: string | null;
+  last_invoice_id: string | null;
+  created_at: string;
+  updated_at: string;
+  plan?: BillingPlan;
+}
+
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  amount_cents: number;
+}
+
+export interface Invoice {
+  id: string;
+  user_id: string;
+  subscription_id: string;
+  plan_snapshot: Record<string, unknown>;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  period_start: string;
+  period_end: string;
+  next_payment_attempt: string | null;
+  created_at: string;
+  updated_at: string;
+  invoice_items?: InvoiceItem[];
+}
+
 // Fix: Add and export the Order interface for managing user file history.
 export interface Order {
   id: number;
