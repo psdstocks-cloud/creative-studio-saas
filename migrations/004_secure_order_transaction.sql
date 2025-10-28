@@ -1,88 +1,86 @@
 -- Migration: Secure order placement and balance deductions
 -- Adds server-side helper functions that enforce balance checks when creating orders
 
-create or replace function public.secure_deduct_balance(p_user_id uuid, p_amount numeric)
-returns profiles
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  updated_profile profiles;
-begin
-  if p_amount is null or p_amount < 0 then
-    raise exception 'Amount to deduct must be non-negative';
-  end if;
+SET search_path = public;
 
-  update profiles
-    set balance = balance - p_amount,
-        updated_at = now()
-    where id = p_user_id
-      and balance >= p_amount
-    returning * into updated_profile;
+CREATE OR REPLACE FUNCTION public.secure_deduct_balance(p_user_id uuid, p_amount numeric)
+RETURNS public.profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  updated_profile public.profiles;
+BEGIN
+  IF p_amount IS NULL OR p_amount < 0 THEN
+    RAISE EXCEPTION 'Amount to deduct must be non-negative';
+  END IF;
 
-  if not found then
-    raise exception 'Insufficient balance or profile missing';
-  end if;
+  UPDATE public.profiles
+     SET balance = balance - p_amount,
+         updated_at = NOW()
+   WHERE id = p_user_id
+     AND balance >= p_amount
+  RETURNING * INTO updated_profile;
 
-  return updated_profile;
-end;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Insufficient balance or profile missing';
+  END IF;
+
+  RETURN updated_profile;
+END;
 $$;
 
-revoke all on function public.secure_deduct_balance(uuid, numeric) from public;
-grant execute on function public.secure_deduct_balance(uuid, numeric) to service_role;
-grant execute on function public.secure_deduct_balance(uuid, numeric) to authenticated;
+REVOKE ALL ON FUNCTION public.secure_deduct_balance(uuid, numeric) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.secure_deduct_balance(uuid, numeric) TO service_role;
+GRANT EXECUTE ON FUNCTION public.secure_deduct_balance(uuid, numeric) TO authenticated;
 
-create or replace function public.secure_create_stock_order(
-    p_user_id uuid,
-    p_task_id text,
-    p_amount numeric,
-    p_file_info jsonb,
-    p_status text default 'processing'
+CREATE OR REPLACE FUNCTION public.secure_create_stock_order(
+  p_user_id  uuid,
+  p_task_id  text,
+  p_amount   numeric,
+  p_file_info jsonb,
+  p_status   text DEFAULT 'processing'
 )
-returns stock_order
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  created_order stock_order;
-  normalized_status text := coalesce(nullif(p_status, ''), 'processing');
-begin
-  if p_task_id is null or length(trim(p_task_id)) = 0 then
-    raise exception 'Task id is required';
-  end if;
+RETURNS public.stock_order
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  created_order public.stock_order;
+  normalized_status text := COALESCE(NULLIF(p_status, ''), 'processing');
+BEGIN
+  IF p_task_id IS NULL OR LENGTH(TRIM(p_task_id)) = 0 THEN
+    RAISE EXCEPTION 'Task id is required';
+  END IF;
 
-  if p_amount is null or p_amount < 0 then
-    raise exception 'Amount must be non-negative';
-  end if;
+  IF p_amount IS NULL OR p_amount < 0 THEN
+    RAISE EXCEPTION 'Amount must be non-negative';
+  END IF;
 
-  if exists (select 1 from stock_order where task_id = p_task_id) then
-    raise exception 'Order with this task id already exists';
-  end if;
+  IF EXISTS (SELECT 1 FROM public.stock_order WHERE task_id = p_task_id) THEN
+    RAISE EXCEPTION 'Order with this task id already exists';
+  END IF;
 
-  if p_amount > 0 then
-    perform secure_deduct_balance(p_user_id, p_amount);
-  else
-    perform 1 from profiles where id = p_user_id;
-    if not found then
-      raise exception 'Profile not found';
-    end if;
-  end if;
+  IF p_amount > 0 THEN
+    PERFORM public.secure_deduct_balance(p_user_id, p_amount);
+  ELSE
+    PERFORM 1 FROM public.profiles WHERE id = p_user_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Profile not found';
+    END IF;
+  END IF;
 
-  insert into stock_order (user_id, task_id, file_info, status)
-  values (p_user_id, p_task_id, p_file_info, normalized_status)
-  returning * into created_order;
+  INSERT INTO public.stock_order (user_id, task_id, file_info, status)
+  VALUES (p_user_id, p_task_id, p_file_info, normalized_status)
+  RETURNING * INTO created_order;
 
-  return created_order;
-end;
+  RETURN created_order;
+END;
 $$;
 
-revoke all on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) from public;
-grant execute on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) to service_role;
-grant execute on function public.secure_create_stock_order(uuid, text, numeric, jsonb, text) to authenticated;
+REVOKE ALL ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.secure_create_stock_order(uuid, text, numeric, jsonb, text) TO authenticated;
 
--- Ensure PostgREST becomes aware of the new function immediately. Without this the
--- schema cache can serve stale metadata and the RPC call fails with
--- "Could not find the function ... in the schema cache".
-notify pgrst, 'reload schema';
+-- Ensure PostgREST picks up the new/changed functions immediately
+SELECT pg_notify('pgrst', 'reload schema');
