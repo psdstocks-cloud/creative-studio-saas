@@ -26,13 +26,13 @@ const Sidebar = () => {
   const { user, signOut } = useAuth();
   
   const navItems: NavItem[] = [
-    { id: 'home', label: t('home'), icon: <HomeIcon />, path: '/' },
-    { id: 'stock', label: t('stockFullSize'), icon: <ImageIcon />, path: '/stock' },
-    { id: 'ai', label: t('aiGeneration'), icon: <SparklesIcon />, path: '/ai' },
-    { id: 'files', label: t('filesManager'), icon: <ServerIcon />, path: '/files' },
-    { id: 'api', label: t('api'), icon: <CodeBracketIcon />, path: '/api' },
-    { id: 'pricing', label: t('pricing'), icon: <TagIcon />, path: '/pricing' },
-    { id: 'billing', label: t('billing'), icon: <WalletIcon />, path: '/dashboard/billing' },
+    { id: 'home', label: t('home'), icon: <HomeIcon />, path: '/app' },
+    { id: 'stock', label: t('stockFullSize'), icon: <ImageIcon />, path: '/app/stock' },
+    { id: 'ai', label: t('aiGeneration'), icon: <SparklesIcon />, path: '/app/ai' },
+    { id: 'files', label: t('filesManager'), icon: <ServerIcon />, path: '/app/files' },
+    { id: 'api', label: t('api'), icon: <CodeBracketIcon />, path: '/app/api' },
+    { id: 'pricing', label: t('pricing'), icon: <TagIcon />, path: '/app/pricing' },
+    { id: 'billing', label: t('billing'), icon: <WalletIcon />, path: '/app/billing' },
   ];
 
   const otherItems = [
@@ -53,10 +53,11 @@ const Sidebar = () => {
       </div>
       <nav className="flex-1 mt-4">
         {navItems.map((item) => (
-            <NavLink 
-                key={item.id} 
+            <NavLink
+                key={item.id}
                 to={item.path}
                 className={navLinkClasses}
+                end={item.path === '/app'}
             >
                 {item.icon}
                 <span className="ms-4">{item.label}</span>

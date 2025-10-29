@@ -16,6 +16,8 @@ interface AuthContextType {
   refreshProfile: () => Promise<User | null>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
   resendConfirmationEmail: (email: string) => Promise<void>;
+  hasRole: (roles: string | string[]) => boolean;
+  userRoles: string[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,11 +40,53 @@ interface ProfileFetchError extends Error {
 const PROFILE_FETCH_TIMEOUT_MS = 30000;
 const PROFILE_FETCH_RETRY_DELAY_MS = 500;
 const MAX_PROFILE_FETCH_ATTEMPTS = 2;
+const DEFAULT_ROLE = 'user';
+const EMPTY_ROLES: string[] = [];
+
+const normalizeRoleInput = (input: unknown): string[] => {
+  if (!input) {
+    return [];
+  }
+
+  if (Array.isArray(input)) {
+    return input
+      .map((role) => (typeof role === 'string' ? role : String(role)))
+      .map((role) => role.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof input === 'string') {
+    return input
+      .split(',')
+      .map((role) => role.trim())
+      .filter(Boolean);
+  }
+
+  return [String(input)];
+};
+
+const extractRolesFromSession = (sessionUser: Session['user']): string[] => {
+  const rawRoles = [
+    ...normalizeRoleInput(sessionUser.app_metadata?.roles),
+    ...normalizeRoleInput(sessionUser.app_metadata?.role),
+    ...normalizeRoleInput(sessionUser.user_metadata?.roles),
+    ...normalizeRoleInput(sessionUser.user_metadata?.role),
+  ];
+
+  const normalized = new Set<string>(
+    rawRoles.map((role) => role.toLowerCase())
+  );
+
+  normalized.add(DEFAULT_ROLE);
+
+  return Array.from(normalized);
+};
 
 const buildFallbackUser = (sessionUser: Session['user']): User => ({
   id: sessionUser.id,
   email: sessionUser.email || 'No email found',
   balance: 100,
+  roles: extractRolesFromSession(sessionUser),
 });
 
 const classifyPostgrestError = (error: PostgrestError | null): ProfileFetchFailureType => {
@@ -90,6 +134,7 @@ const createProfileFetchError = (
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const userRoles = user?.roles ?? EMPTY_ROLES;
 
   const getAppUserFromSession = useCallback(async (session: Session | null): Promise<User | null> => {
     if (!session?.user) {
@@ -160,11 +205,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                             });
                         }
 
-                        return {
-                            id: session.user.id,
-                            email: session.user.email || 'No email found',
-                            balance: 100,
-                        };
+                        return { ...fallbackUser, balance: 100 };
                     }
 
                     const errorToThrow = createProfileFetchError(
@@ -200,9 +241,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 });
 
                 return {
-                    id: session.user.id,
-                    email: session.user.email || 'No email found',
-                    balance: Number(profile?.balance ?? 100),
+                    ...fallbackUser,
+                    balance: Number(profile?.balance ?? fallbackUser.balance),
                 };
             } catch (error: any) {
                 if (error?.name === 'AbortError') {
@@ -403,6 +443,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  const hasRole = useCallback((rolesToCheck: string | string[]): boolean => {
+    const requiredRoles = Array.isArray(rolesToCheck) ? rolesToCheck : [rolesToCheck];
+
+    if (requiredRoles.length === 0) {
+      return true;
+    }
+
+    const normalizedUserRoles = new Set(userRoles.map((role) => role.toLowerCase()));
+
+    return requiredRoles.some((role) => normalizedUserRoles.has(role.toLowerCase()));
+  }, [userRoles]);
+
   const updateUserBalance = useCallback((balance: number) => {
     setUser(prevUser => (prevUser ? { ...prevUser, balance: Number(balance) } : prevUser));
   }, []);
@@ -499,7 +551,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, updateUserBalance, refreshProfile, sendPasswordResetEmail, resendConfirmationEmail }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, updateUserBalance, refreshProfile, sendPasswordResetEmail, resendConfirmationEmail, hasRole, userRoles }}>
       {children}
     </AuthContext.Provider>
   );
