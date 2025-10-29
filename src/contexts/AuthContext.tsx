@@ -528,18 +528,40 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = useCallback(async () => {
     try {
-      await destroyBffSession();
+      // Try to destroy BFF session, but don't block sign out if it fails
+      try {
+        await destroyBffSession();
+      } catch (error: any) {
+        console.warn('AuthProvider: Failed to terminate BFF session during sign out', error);
+      }
+
+      // Always sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error.message);
+      }
+
+      // Always clear user state regardless of errors
+      setUser(null);
+      
+      // Clear any stale data from localStorage
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.startsWith('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch (e) {
+        console.warn('Failed to clear localStorage during sign out', e);
+      }
+      
+      console.log('Sign out completed successfully');
     } catch (error: any) {
-      console.warn('AuthProvider: Failed to terminate BFF session during sign out', error);
+      console.error('Unexpected error during sign out', error);
+      // Force sign out even if there are errors
+      setUser(null);
     }
-
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error signing out:', error.message);
-      throw new Error(error.message || 'Could not sign out.');
-    }
-
-    setUser(null);
   }, []);
 
   const hasRole = useCallback(
