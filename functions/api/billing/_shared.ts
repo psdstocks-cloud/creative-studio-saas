@@ -42,7 +42,10 @@ export type InvoiceRow = {
   updated_at: string;
 };
 
-export interface BillingEnv extends SupabaseEnv {}
+export interface BillingEnv extends SupabaseEnv {
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
+}
 
 export const isMissingTableError = (error: unknown, table: string) => {
   const message = typeof (error as any)?.message === 'string' ? (error as any).message : '';

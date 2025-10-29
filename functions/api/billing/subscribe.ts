@@ -9,7 +9,10 @@ import {
   fetchCurrentSubscription,
   SUBSCRIPTION_SELECT,
   INVOICE_WITH_ITEMS_SELECT,
+  mapInvoice,
 } from './_shared';
+import { sendEmail } from '../../_lib/email';
+import { buildHtmlReceipt } from './invoices/[id]';
 import type { BillingEnv } from './_shared';
 
 const buildInvoiceDescription = (planName: string, startIso: string, endIso: string) => {
@@ -145,6 +148,56 @@ export const onRequest = async ({ request, env }: { request: Request; env: Billi
 
     if (refreshError) {
       throw new Error(refreshError.message || 'Unable to load invoice.');
+    }
+
+    const mappedInvoice = mapInvoice((finalInvoice ?? invoiceRow) as any);
+
+    if (user.email) {
+      const formatter = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: mappedInvoice.currency || 'usd',
+      });
+
+      const textLines = [
+        'Hi there,',
+        '',
+        `Thanks for your purchase. We've attached the receipt for invoice ${mappedInvoice.id}.`,
+        `Total: ${formatter.format(mappedInvoice.amount_cents / 100)}`,
+        '',
+        'You can view the receipt in your billing portal at any time.',
+        '',
+        'Best regards,',
+        'The Creative Studio Team',
+      ];
+
+      const htmlReceipt = buildHtmlReceipt(mappedInvoice);
+
+      try {
+        await sendEmail(env, {
+          to: user.email,
+          subject: `Receipt for invoice ${mappedInvoice.id}`,
+          html: htmlReceipt,
+          text: textLines.join('\n'),
+          attachments: [
+            {
+              filename: `invoice-${mappedInvoice.id}.html`,
+              content: htmlReceipt,
+              mimeType: 'text/html',
+            },
+          ],
+        });
+      } catch (emailError) {
+        console.error('Failed to send subscription receipt email.', {
+          invoiceId: mappedInvoice.id,
+          userId: user.id,
+          error: emailError instanceof Error ? emailError.message : emailError,
+        });
+      }
+    } else {
+      console.warn('Skipping receipt email because the user has no email address.', {
+        invoiceId: mappedInvoice.id,
+        userId: user.id,
+      });
     }
 
     const subscription = await fetchCurrentSubscription(supabase, user.id);

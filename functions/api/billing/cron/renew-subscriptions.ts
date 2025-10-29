@@ -1,6 +1,16 @@
 import { handleOptions, errorResponse } from '../../../_lib/http';
-import { computePeriodRange, buildPlanSnapshot, PLAN_SELECT, ok, handleUnexpectedError } from '../_shared';
+import {
+  computePeriodRange,
+  buildPlanSnapshot,
+  PLAN_SELECT,
+  ok,
+  handleUnexpectedError,
+  INVOICE_WITH_ITEMS_SELECT,
+  mapInvoice,
+} from '../_shared';
 import { getServiceSupabaseClient } from '../../../_lib/supabase';
+import { sendEmail } from '../../../_lib/email';
+import { buildHtmlReceipt } from '../invoices/[id]';
 import type { BillingEnv } from '../_shared';
 
 interface CronEnv extends BillingEnv {
@@ -131,6 +141,90 @@ export const onRequest = async ({ request, env }: { request: Request; env: CronE
 
         if (applyError) {
           throw new Error(applyError.message || 'Unable to finalize invoice.');
+        }
+
+        const { data: invoiceDetails, error: invoiceLoadError } = await supabase
+          .from('invoices')
+          .select(INVOICE_WITH_ITEMS_SELECT)
+          .eq('id', invoice.id)
+          .maybeSingle();
+
+        if (invoiceLoadError) {
+          throw new Error(invoiceLoadError.message || 'Unable to load invoice.');
+        }
+        if (!invoiceDetails) {
+          throw new Error('Invoice record not found after renewal.');
+        }
+
+        const mappedInvoice = mapInvoice(invoiceDetails as any);
+
+        try {
+          const { data: userResult, error: userError } = await supabase.auth.admin.getUserById(
+            row.user_id
+          );
+
+          if (userError) {
+            throw new Error(userError.message || 'Unable to load user for invoice email.');
+          }
+
+          const recipientEmail = userResult?.user?.email || null;
+
+          if (recipientEmail) {
+            const formatter = new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: mappedInvoice.currency || 'usd',
+            });
+
+            const textLines = [
+              'Hi there,',
+              '',
+              `Thanks for your continued subscription. We've attached the receipt for invoice ${mappedInvoice.id}.`,
+              `Total: ${formatter.format(mappedInvoice.amount_cents / 100)}`,
+              '',
+              'You can view the receipt in your billing portal at any time.',
+              '',
+              'Best regards,',
+              'The Creative Studio Team',
+            ];
+
+            const htmlReceipt = buildHtmlReceipt(mappedInvoice);
+
+            try {
+              await sendEmail(env, {
+                to: recipientEmail,
+                subject: `Receipt for invoice ${mappedInvoice.id}`,
+                html: htmlReceipt,
+                text: textLines.join('\n'),
+                attachments: [
+                  {
+                    filename: `invoice-${mappedInvoice.id}.html`,
+                    content: htmlReceipt,
+                    mimeType: 'text/html',
+                  },
+                ],
+              });
+            } catch (emailError) {
+              console.error('Failed to send renewal receipt email.', {
+                invoiceId: mappedInvoice.id,
+                subscriptionId: row.id,
+                error: emailError instanceof Error ? emailError.message : emailError,
+              });
+            }
+          } else {
+            console.warn('Skipping renewal receipt email because the user has no email address.', {
+              invoiceId: mappedInvoice.id,
+              subscriptionId: row.id,
+            });
+          }
+        } catch (userOrEmailError) {
+          console.error('Unable to process receipt email for renewed subscription.', {
+            invoiceId: mappedInvoice.id,
+            subscriptionId: row.id,
+            error:
+              userOrEmailError instanceof Error
+                ? userOrEmailError.message
+                : userOrEmailError,
+          });
         }
 
         processed.push({ subscription_id: row.id, invoice_id: invoice.id });
