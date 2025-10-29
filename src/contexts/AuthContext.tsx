@@ -13,6 +13,7 @@ interface AuthContextType {
   signOut: () => void;
   deductPoints: (amount: number) => Promise<void>;
   updateUserBalance: (balance: number) => void;
+  refreshProfile: () => Promise<User | null>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
   resendConfirmationEmail: (email: string) => Promise<void>;
 }
@@ -447,6 +448,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  const refreshProfile = useCallback(async (): Promise<User | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+        setUser(null);
+        return null;
+    }
+
+    try {
+        const appUser = await getAppUserFromSession(session);
+        setUser(appUser);
+        return appUser;
+    } catch (profileError) {
+        const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
+        console.error('AuthProvider: Failed to refresh user profile', profileError);
+
+        if (session?.user) {
+            console.warn('AuthProvider: Using fallback profile after refresh failure', {
+                failureType,
+                userId: session.user.id,
+            });
+            const fallbackUser = buildFallbackUser(session.user);
+            setUser(fallbackUser);
+            return fallbackUser;
+        }
+
+        if (failureType !== 'timeout' && failureType !== 'permission') {
+            await supabase.auth.signOut();
+        }
+
+        setUser(null);
+        throw profileError instanceof Error
+            ? profileError
+            : new Error('Could not refresh profile.');
+    }
+  }, [getAppUserFromSession]);
+
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resend({
       type: 'signup',
@@ -461,7 +499,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, updateUserBalance, sendPasswordResetEmail, resendConfirmationEmail }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, updateUserBalance, refreshProfile, sendPasswordResetEmail, resendConfirmationEmail }}>
       {children}
     </AuthContext.Provider>
   );

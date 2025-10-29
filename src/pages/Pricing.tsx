@@ -44,7 +44,7 @@ const isUnauthorizedError = (message: string) =>
 
 const Pricing: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, refreshProfile } = useAuth();
   const [plans, setPlans] = useState<BillingPlan[]>(FALLBACK_PLANS);
   const [isLoading, setIsLoading] = useState(false);
   const [subscribingPlanId, setSubscribingPlanId] = useState<string | null>(null);
@@ -96,6 +96,11 @@ const Pricing: React.FC = () => {
     try {
       setSubscribingPlanId(plan.id);
       await subscribeToPlan(plan.id);
+      try {
+        await refreshProfile();
+      } catch (refreshError) {
+        console.error('Pricing: Failed to refresh profile after subscription', refreshError);
+      }
       navigate('/dashboard/billing');
     } catch (err: any) {
       const message = err?.message || 'Unable to start subscription.';

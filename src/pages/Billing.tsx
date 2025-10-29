@@ -58,7 +58,7 @@ const formatDate = (iso: string) =>
 
 const Billing: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, refreshProfile } = useAuth();
   const [plans, setPlans] = useState<BillingPlan[]>(FALLBACK_PLANS);
   const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -138,6 +138,13 @@ const Billing: React.FC = () => {
       const updated = await toggleCancelAtPeriodEnd(!subscription.cancel_at_period_end);
       if (updated) {
         setSubscription(updated);
+        if (!updated.cancel_at_period_end) {
+          try {
+            await refreshProfile();
+          } catch (refreshError) {
+            console.error('Billing: Failed to refresh profile after resuming subscription', refreshError);
+          }
+        }
       }
     } catch (err: any) {
       if (handleError(err)) {
@@ -160,6 +167,11 @@ const Billing: React.FC = () => {
       const updated = await changeSubscriptionPlan(plan.id);
       if (updated) {
         setSubscription(updated);
+        try {
+          await refreshProfile();
+        } catch (refreshError) {
+          console.error('Billing: Failed to refresh profile after changing plan', refreshError);
+        }
       }
     } catch (err: any) {
       if (handleError(err)) {
