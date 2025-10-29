@@ -384,7 +384,7 @@ const AdminOrders = () => {
             <tbody className="divide-y divide-slate-800/70">
               {table.getRowModel().rows.map((row) => (
                 <tr key={row.id} className="bg-slate-950/30">
-                  {row.getVisibleCells().map((cell) => (
+                  {row.cells.map((cell) => (
                     <td key={cell.id} className="px-4 py-4 align-top text-slate-200">
                       {flexRender(cell.column.columnDef.cell, {
                         row,
