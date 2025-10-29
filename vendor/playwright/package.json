@@ -1,0 +1,6 @@
+{
+  "name": "playwright",
+  "version": "1.56.1",
+  "description": "Stub Playwright package for Cloudflare build installs.",
+  "main": "index.js"
+}
