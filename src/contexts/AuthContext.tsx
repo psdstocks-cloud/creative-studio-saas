@@ -338,10 +338,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       try {
-        const response = await fetchBffSession();
+        // Add a 5-second timeout - if BFF doesn't respond quickly, skip it
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => reject(new Error('BFF session timeout')), 5000);
+        });
+
+        const response = await Promise.race([
+          fetchBffSession(),
+          timeoutPromise
+        ]);
+
         const bffUser = response?.user;
 
         if (!bffUser) {
+          console.warn('AuthProvider: BFF session returned no user, using Supabase session only');
           return candidate;
         }
 
@@ -351,6 +361,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             ? bffUser.metadata
             : (candidate.metadata ?? null);
 
+        console.log('AuthProvider: Successfully synchronized with BFF session');
         return {
           ...candidate,
           email: bffUser.email || candidate.email,
@@ -358,7 +369,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           metadata,
         };
       } catch (error) {
-        console.error('AuthProvider: Failed to synchronize BFF session', error);
+        console.warn('AuthProvider: Failed to synchronize BFF session, continuing with Supabase session only', error);
+        // Always return the candidate - BFF is optional
         return candidate;
       }
     },
