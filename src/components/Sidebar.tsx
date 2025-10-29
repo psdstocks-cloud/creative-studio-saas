@@ -10,9 +10,14 @@ import {
   SignOutIcon,
   WalletIcon,
   TagIcon,
+  MenuIcon,
+  UserCircleIcon,
 } from './icons/Icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { Button } from './ui/button';
+import { useLayoutStore } from '../stores/layoutStore';
+import { cn } from '../lib/utils';
 
 interface NavItem {
   id: string;
@@ -24,87 +29,140 @@ interface NavItem {
 const Sidebar = () => {
   const { t, language, setLanguage } = useLanguage();
   const { user, signOut } = useAuth();
-  
+  const { isSidebarCollapsed, toggleSidebar } = useLayoutStore();
+
   const navItems: NavItem[] = [
-    { id: 'home', label: t('home'), icon: <HomeIcon />, path: '/' },
-    { id: 'stock', label: t('stockFullSize'), icon: <ImageIcon />, path: '/stock' },
-    { id: 'ai', label: t('aiGeneration'), icon: <SparklesIcon />, path: '/ai' },
-    { id: 'files', label: t('filesManager'), icon: <ServerIcon />, path: '/files' },
-    { id: 'api', label: t('api'), icon: <CodeBracketIcon />, path: '/api' },
-    { id: 'pricing', label: t('pricing'), icon: <TagIcon />, path: '/pricing' },
-    { id: 'billing', label: t('billing'), icon: <WalletIcon />, path: '/dashboard/billing' },
+    { id: 'home', label: t('home'), icon: <HomeIcon className="h-5 w-5" />, path: '/app' },
+    { id: 'stock', label: t('stockFullSize'), icon: <ImageIcon className="h-5 w-5" />, path: '/app/stock' },
+    { id: 'ai', label: t('aiGeneration'), icon: <SparklesIcon className="h-5 w-5" />, path: '/app/ai' },
+    { id: 'files', label: t('filesManager'), icon: <ServerIcon className="h-5 w-5" />, path: '/app/files' },
+    { id: 'api', label: t('api'), icon: <CodeBracketIcon className="h-5 w-5" />, path: '/app/api' },
+    { id: 'pricing', label: t('pricing'), icon: <TagIcon className="h-5 w-5" />, path: '/app/pricing' },
+    { id: 'billing', label: t('billing'), icon: <WalletIcon className="h-5 w-5" />, path: '/app/billing' },
+    { id: 'account', label: t('account'), icon: <UserCircleIcon className="h-5 w-5" />, path: '/app/account' },
   ];
 
-  const otherItems = [
-    { id: 'settings', label: t('settings'), icon: <CogIcon /> },
-  ];
+  const otherItems: NavItem[] = [{ id: 'settings', label: t('settings'), icon: <CogIcon className="h-5 w-5" />, path: '#' }];
 
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
-    `w-full flex items-center px-4 py-3 text-sm font-medium transition-colors duration-200 ${
-      isActive
-        ? 'bg-blue-600 text-white'
-        : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-    }`;
+    cn(
+      'flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200',
+      isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white',
+      isSidebarCollapsed && 'justify-center px-2',
+    );
 
   return (
-    <aside className="w-64 flex-shrink-0 bg-gray-800 text-white flex flex-col">
-      <div className="h-20 flex items-center justify-center text-2xl font-bold border-b border-gray-700">
-        Creative<span className="text-blue-500">SaaS</span>
+    <aside
+      className={cn(
+        'flex flex-col bg-gray-800 text-white transition-all duration-200',
+        isSidebarCollapsed ? 'w-20' : 'w-64',
+      )}
+    >
+      <div className="flex h-20 items-center border-b border-gray-700 px-3">
+        <div className={cn('flex-1 font-bold text-white', isSidebarCollapsed ? 'text-xl text-center' : 'text-2xl')}>
+          {isSidebarCollapsed ? (
+            <span>CS</span>
+          ) : (
+            <span>
+              Creative<span className="text-blue-500">SaaS</span>
+            </span>
+          )}
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          aria-label="Toggle sidebar"
+          className="text-gray-300 hover:text-white"
+        >
+          <MenuIcon className="h-5 w-5" />
+        </Button>
       </div>
-      <nav className="flex-1 mt-4">
+
+      <nav className={cn('flex-1 space-y-1 px-2 py-4', isSidebarCollapsed && 'px-1')}>
         {navItems.map((item) => (
-            <NavLink 
-                key={item.id} 
-                to={item.path}
-                className={navLinkClasses}
-            >
-                {item.icon}
-                <span className="ms-4">{item.label}</span>
-            </NavLink>
+          <NavLink key={item.id} to={item.path} className={navLinkClasses} end={item.path === '/app'}>
+            <span className={cn('flex items-center justify-center', isSidebarCollapsed ? '' : 'me-3')}>{item.icon}</span>
+            {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
+          </NavLink>
         ))}
       </nav>
-      <div className="pb-4">
+
+      <div className="px-2 pb-4">
         {otherItems.map((item) => (
-             <button
-             key={item.id}
-             className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-400 hover:bg-gray-700 hover:text-white transition-colors duration-200"
-           >
-             {item.icon}
-             <span className="ms-4">{item.label}</span>
-           </button>
+          <Button
+            key={item.id}
+            variant="ghost"
+            className={cn(
+              'w-full justify-start gap-3 text-gray-400 hover:bg-gray-700 hover:text-white',
+              isSidebarCollapsed && 'justify-center',
+            )}
+          >
+            <span className="flex items-center justify-center">{item.icon}</span>
+            {!isSidebarCollapsed && <span>{item.label}</span>}
+          </Button>
         ))}
       </div>
-       <div className="px-4 py-3 border-t border-gray-700">
-          <p className="text-sm text-gray-400">{t('availablePoints')}</p>
-          <p className="text-xl font-bold text-white">{user?.balance.toFixed(2)} <span className="text-base font-medium text-gray-300">{t('points')}</span></p>
+
+      {!isSidebarCollapsed && (
+        <>
+          <div className="border-t border-gray-700 px-4 py-3">
+            <p className="text-sm text-gray-400">{t('availablePoints')}</p>
+            <p className="text-xl font-bold text-white">
+              {user?.balance.toFixed(2)}{' '}
+              <span className="text-base font-medium text-gray-300">{t('points')}</span>
+            </p>
+          </div>
+          <div className="border-t border-gray-700 px-4 py-3">
+            <p className="truncate text-sm text-gray-400" title={user?.email}>
+              {user?.email}
+            </p>
+          </div>
+        </>
+      )}
+
+      <div className="border-t border-gray-700 p-2">
+        <Button
+          type="button"
+          onClick={signOut}
+          variant="ghost"
+          className={cn(
+            'w-full items-center justify-start gap-3 text-gray-400 hover:bg-red-800/50 hover:text-white',
+            isSidebarCollapsed && 'justify-center',
+          )}
+        >
+          <SignOutIcon className="h-5 w-5" />
+          {!isSidebarCollapsed && <span>{t('signOut')}</span>}
+        </Button>
       </div>
-       <div className="px-4 py-3 border-t border-gray-700">
-          <p className="text-sm text-gray-400 truncate" title={user?.email}>{user?.email}</p>
-      </div>
-      <div className="p-2 border-t border-gray-700">
-         <button
-            onClick={signOut}
-            className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-400 hover:bg-red-800/50 hover:text-white transition-colors duration-200 rounded-md"
-          >
-            <SignOutIcon />
-            <span className="ms-4">{t('signOut')}</span>
-          </button>
-      </div>
-      <div className="p-4 flex justify-around border-t border-gray-700">
-        <button
+
+      <div
+        className={cn(
+          'border-t border-gray-700 p-4',
+          isSidebarCollapsed ? 'flex flex-col gap-2' : 'flex items-center justify-around',
+        )}
+      >
+        <Button
+          type="button"
           onClick={() => setLanguage('en')}
-          className={`font-bold py-1 px-3 rounded ${language === 'en' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+          variant={language === 'en' ? 'default' : 'ghost'}
+          size="sm"
+          className={cn(isSidebarCollapsed ? 'w-full justify-center' : 'px-4')}
           aria-pressed={language === 'en'}
         >
           EN
-        </button>
-        <button
+        </Button>
+        <Button
+          type="button"
           onClick={() => setLanguage('ar')}
-          className={`font-bold py-1 px-3 rounded ${language === 'ar' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
+          variant={language === 'ar' ? 'default' : 'ghost'}
+          size="sm"
+          className={cn(isSidebarCollapsed ? 'w-full justify-center' : 'px-4')}
           aria-pressed={language === 'ar'}
         >
           AR
-        </button>
+        </Button>
       </div>
     </aside>
   );

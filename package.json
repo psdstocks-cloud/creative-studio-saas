@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test \"tests/**/*.mjs\"",
+    "test:watch": "node --test --watch \"tests/**/*.mjs\"",
+    "test:coverage": "node --test \"tests/**/*.mjs\"",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -26,5 +30,8 @@
     "tailwindcss": "^3.4.1",
     "typescript": "~5.8.2",
     "vite": "^6.4.1"
+  },
+  "optionalDependencies": {
+    "@playwright/test": "^1.48.2"
   }
 }

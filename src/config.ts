@@ -3,6 +3,8 @@
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const observabilityEndpoint = import.meta.env.VITE_OBSERVABILITY_ENDPOINT || '/api/observability/events';
+const observabilityEnabled = String(import.meta.env.VITE_OBSERVABILITY_ENABLED ?? 'true').toLowerCase() !== 'false';
 
 // Check if credentials are available
 const areSupabaseCredentialsAvailable = !!(supabaseUrl && supabaseAnonKey);
@@ -21,5 +23,9 @@ export const config = {
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
     isAvailable: areSupabaseCredentialsAvailable
+  },
+  observability: {
+    enabled: observabilityEnabled,
+    endpoint: observabilityEndpoint
   }
 };

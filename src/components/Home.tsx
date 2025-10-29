@@ -51,19 +51,19 @@ const Home = () => {
                         title={t('aiGeneration')}
                         description={t('aiImageGenerationDesc')}
                         icon={<SparklesIcon className="w-8 h-8 text-white" />}
-                        onClick={() => navigate('/ai')}
+                        onClick={() => navigate('/app/ai')}
                     />
                     <FeatureCard
                         title={t('stockFullSize')}
                         description={t('stockDownloaderDesc')}
                         icon={<ImageIcon className="w-8 h-8 text-white" />}
-                        onClick={() => navigate('/stock')}
+                        onClick={() => navigate('/app/stock')}
                     />
                     <FeatureCard
                         title={t('api')}
                         description={t('developerApiDesc')}
                         icon={<CodeBracketIcon className="w-8 h-8 text-white" />}
-                        onClick={() => navigate('/api')}
+                        onClick={() => navigate('/app/api')}
                     />
                 </div>
             </section>

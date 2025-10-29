@@ -63,6 +63,25 @@ export interface User {
   id: string; // From Supabase Auth
   email: string;
   balance: number; // From our 'profiles' table
+  roles: string[];
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface AccountOverview {
+  id: string | null;
+  email: string | null;
+  username: string | null;
+  balance: number;
+  plan?: string | null;
+  lastLoginAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface SendPointsResult {
+  success: boolean;
+  balance: number | null;
+  message: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface BillingPlan {
@@ -122,6 +141,50 @@ export interface Order {
   file_info: StockFileInfo;
   status: 'processing' | 'ready' | 'failed' | 'payment_failed';
   download_url: string | null;
+}
+
+export interface AuditEntry {
+  timestamp: string | null;
+  action: string;
+  actor: { id: string; email?: string | null; roles?: string[] | null } | null;
+  method: string | null;
+  path: string | null;
+  status: number | null;
+  metadata: Record<string, unknown> | null;
+  requestId: string | null;
+  durationMs: number | null;
+}
+
+export interface AdminOrderSummary extends Order {}
+
+export interface AdminUserOrderStats {
+  total: number;
+  ready: number;
+  failed: number;
+  processing: number;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string | null;
+  roles: string[];
+  lastSignInAt: string | null;
+  createdAt: string | null;
+  metadata: Record<string, unknown>;
+  balance: number;
+  updatedAt: string | null;
+  orderStats: AdminUserOrderStats;
+}
+
+export interface AdminDashboardSummary {
+  summary: {
+    ordersLast24h: number;
+    processingOrders: number;
+    totalSpend30d: number;
+  };
+  topSites: { site: string; count: number }[];
+  recentOrders: Order[];
+  recentAudit: AuditEntry[];
 }
 
 // FIX: Add Database schema types for Supabase client to fix type errors.

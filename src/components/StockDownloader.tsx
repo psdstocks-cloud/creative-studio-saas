@@ -2,10 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getStockFileInfo, orderStockFile, checkOrderStatus, generateDownloadLink } from '../services/stockService';
-import { createOrder, updateOrder, findOrderBySiteAndId, getOrders } from '../services/filesService';
+import { createOrder, updateOrder, findOrderBySiteAndId } from '../services/filesService';
 import type { StockFileInfo, StockOrder, Order } from '../types';
 import { LinkIcon, ArrowPathIcon, CheckCircleIcon, XMarkIcon, ExclamationTriangleIcon, ArrowDownTrayIcon, XCircleIcon } from './icons/Icons';
 import SupportedSites from './SupportedSites';
+import { useOrdersQuery, ORDERS_QUERY_KEY } from '../hooks/queries/useOrders';
+import { useQueryClient } from '../lib/queryClient';
+import { OrdersTable } from './orders/OrdersTable';
 
 type DownloadState = 'idle' | 'fetching' | 'info' | 'ordering' | 'error';
 type Mode = 'single' | 'batch';
@@ -56,39 +59,35 @@ const useOrderPolling = (orders: Order[], onUpdate: (taskId: string, newStatus: 
 };
 
 
-const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId: string, newStatus: Order['status']) => void }) => {
+const RecentOrders = ({
+    orders,
+    onUpdate,
+    isFetching,
+}: {
+    orders: Order[];
+    onUpdate: (taskId: string, newStatus: Order['status']) => void;
+    isFetching: boolean;
+}) => {
     const { t } = useLanguage();
     const [downloading, setDownloading] = useState<Set<string>>(new Set());
 
     useOrderPolling(orders, onUpdate);
 
-    const handleDownload = async (taskId: string) => {
+    const handleDownload = useCallback(async (taskId: string) => {
         setDownloading(prev => new Set(prev).add(taskId));
         try {
-            console.log('🔽 Generating fresh download link for task:', taskId);
-            
             const result = await generateDownloadLink(taskId);
-            console.log('✅ Download link result:', result);
-            console.log('📦 Result keys:', Object.keys(result));
-            
-            // ✅ FIX: Add downloadLink to the list of possible field names
-            const downloadUrl = 
-                result.downloadLink ||  // ← ADD THIS FIRST!
-                result.url || 
-                result.download_url || 
-                result.link || 
+            const downloadUrl =
+                result.downloadLink ||
+                result.url ||
+                result.download_url ||
+                result.link ||
                 (result.data && (result.data.url || result.data.download_url || result.data.downloadLink));
-            
-            console.log('🔗 Extracted URL:', downloadUrl);
-            
+
             if (!downloadUrl || downloadUrl === '') {
-                console.error('❌ No valid URL found in response:', result);
                 throw new Error('Invalid download URL received from API');
             }
-            
-            console.log('✅ Download URL:', downloadUrl);
-            
-            // Create temporary link and trigger download
+
             const link = document.createElement('a');
             link.href = downloadUrl;
             link.download = '';
@@ -97,62 +96,27 @@ const RecentOrders = ({ orders, onUpdate }: { orders: Order[], onUpdate: (taskId
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
-            console.log('✅ Download initiated successfully');
         } catch (err: any) {
             console.error('❌ Download error:', err);
             alert(err.message || 'Could not generate download link. The file may still be processing. Please wait a moment and try again.');
         } finally {
             setDownloading(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(taskId);
-                return newSet;
+                const next = new Set(prev);
+                next.delete(taskId);
+                return next;
             });
         }
-    };    
-
-    if (orders.length === 0) return null;
+    }, []);
 
     return (
         <div className="mt-8 animate-fadeIn">
-            <h2 className="text-xl font-semibold text-center mb-4">{t('recentOrders')}</h2>
-            <div className="space-y-3">
-                {orders.map(order => (
-                    <div key={order.id} className="p-3 rounded-lg flex items-center justify-between bg-gray-800/80 glassmorphism">
-                        <div className="flex items-center min-w-0">
-                            <img src={order.file_info.preview} alt="preview" className="w-12 h-12 rounded-md object-cover me-4" />
-                            <div className="min-w-0">
-                                <p className="text-sm font-semibold text-white truncate" title={order.file_info.title || order.file_info.name}>{order.file_info.title || order.file_info.name || order.file_info.site}</p>
-                                <p className="text-xs text-gray-400">{t('cost')}: {order.file_info.cost?.toFixed(2)}</p>
-                            </div>
-                        </div>
-                        <div className="flex-shrink-0">
-                            {order.status === 'processing' && (
-                                <div className="flex items-center space-x-2 rtl:space-x-reverse text-yellow-400">
-                                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                                    <span className="text-sm font-semibold">{t('processingStatus')}</span>
-                                </div>
-                            )}
-                            {order.status === 'ready' && (
-                               <button 
-                                 onClick={() => handleDownload(order.task_id)}
-                                 disabled={downloading.has(order.task_id)}
-                                 className="bg-green-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-wait transition-colors flex items-center text-sm"
-                                >
-                                    {downloading.has(order.task_id) ? <ArrowPathIcon className="w-4 h-4 animate-spin me-2" /> : <ArrowDownTrayIcon className="w-4 h-4 me-2" />}
-                                    {t('downloadNow')}
-                                </button>
-                            )}
-                             {order.status === 'failed' && (
-                                <div className="flex items-center space-x-2 rtl:space-x-reverse text-red-500">
-                                    <XCircleIcon className="w-4 h-4"/>
-                                    <span className="text-sm font-semibold">{t('failedStatus')}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            <h2 className="mb-4 text-center text-xl font-semibold">{t('recentOrders')}</h2>
+            <OrdersTable
+                orders={orders}
+                onDownload={handleDownload}
+                downloadingIds={downloading}
+                isFetching={isFetching}
+            />
         </div>
     );
 };
@@ -178,8 +142,17 @@ const StockDownloader = () => {
     const [isOrderingBatch, setIsOrderingBatch] = useState(false);
     
     // Shared state
-    const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+    const queryClient = useQueryClient();
+    const { data: recentOrders = [], isFetching: isOrdersFetching } = useOrdersQuery(Boolean(user?.id));
     const [error, setError] = useState<string | null>(null);
+
+    const setRecentOrders = useCallback((updater: (prev: Order[]) => Order[]) => {
+        queryClient.setQueryData<Order[]>(ORDERS_QUERY_KEY, (prev) => {
+            const base = Array.isArray(prev) ? [...prev] : [];
+            const next = updater(base);
+            return Array.isArray(next) ? next : base;
+        });
+    }, [queryClient]);
 
     const currentUrlCount = useMemo(() => {
         return batchUrls.split('\n').map(u => u.trim()).filter(Boolean).length;
@@ -187,18 +160,18 @@ const StockDownloader = () => {
     const hasUrlCountError = currentUrlCount > 5;
     
     const refreshRecentOrders = useCallback(async () => {
-        if (user?.id) {
-            try {
-                const orders = await getOrders();
-                setRecentOrders(orders);
-            } catch(err) {
-                 console.error("Failed to refresh recent orders:", err);
-            }
+        if (!user?.id) {
+            return;
         }
-    }, [user]);
+        try {
+            await queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
+        } catch (err) {
+            console.error("Failed to refresh recent orders:", err);
+        }
+    }, [queryClient, user?.id]);
 
     useEffect(() => {
-       refreshRecentOrders();
+        refreshRecentOrders();
     }, [refreshRecentOrders]);
 
 
@@ -275,6 +248,7 @@ const StockDownloader = () => {
             // Immediately add to recent orders for instant feedback
             setRecentOrders(prev => [newOrder, ...prev]);
             handleStartNew();
+            await refreshRecentOrders();
 
         } catch (err: any) {
             setError(err.message || 'Could not place the order.');
@@ -392,7 +366,7 @@ const StockDownloader = () => {
             }
 
             handleStartNew();
-            refreshRecentOrders();
+            await refreshRecentOrders();
 
         } catch (err: any) {
             setError(err.message || "An unexpected error occurred during batch order.");
@@ -401,11 +375,11 @@ const StockDownloader = () => {
         }
     };
     
-    const handleRecentOrderUpdate = (taskId: string, newStatus: Order['status']) => {
+    const handleRecentOrderUpdate = useCallback((taskId: string, newStatus: Order['status']) => {
         setRecentOrders(prevOrders =>
             prevOrders.map(o => o.task_id === taskId ? { ...o, status: newStatus } : o)
         );
-    };
+    }, [setRecentOrders]);
 
     const renderSingleMode = () => (
         <>
@@ -624,7 +598,7 @@ const StockDownloader = () => {
             
             {mode === 'single' ? renderSingleMode() : renderBatchMode()}
             
-            <RecentOrders orders={recentOrders} onUpdate={handleRecentOrderUpdate} />
+            <RecentOrders orders={recentOrders} onUpdate={handleRecentOrderUpdate} isFetching={isOrdersFetching} />
             
             <div className="mt-12">
                 <SupportedSites />

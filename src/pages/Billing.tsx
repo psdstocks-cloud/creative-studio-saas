@@ -158,7 +158,7 @@ const Billing: React.FC = () => {
   };
 
   const handleViewReceipt = (invoiceId: string) => {
-    navigate(`/billing/receipt/${invoiceId}`);
+    navigate(`/app/billing/receipt/${invoiceId}`);
   };
 
   const currentPlanId = subscription?.plan_id;

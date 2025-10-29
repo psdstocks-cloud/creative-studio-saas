@@ -4,8 +4,18 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { QueryClientProvider, queryClient } from './lib/queryClient';
+import { LayoutProvider } from './stores/layoutStore';
 import { config } from './config';
 import './input.css';
+import { ObservabilityBoundary } from './components/ObservabilityBoundary';
+
+const ErrorFallback = () => (
+  <>
+    <h1 className="text-3xl font-bold text-red-500">Something went wrong</h1>
+    <p className="text-gray-200">We're tracking the issue. Please try again in a moment.</p>
+  </>
+);
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -39,11 +49,17 @@ if (!config.supabase.isAvailable) {
   root.render(
     <AppWrapper>
       <BrowserRouter>
-        <LanguageProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </LanguageProvider>
+        <QueryClientProvider client={queryClient}>
+          <LayoutProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                <ObservabilityBoundary fallback={<ErrorFallback />}>
+                  <App />
+                </ObservabilityBoundary>
+              </AuthProvider>
+            </LanguageProvider>
+          </LayoutProvider>
+        </QueryClientProvider>
       </BrowserRouter>
     </AppWrapper>
   );

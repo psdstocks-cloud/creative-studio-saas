@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import type { User } from '../types';
 import type { Session, PostgrestError } from '@supabase/supabase-js';
 import { deductBalance } from '../services/profileService';
+import { fetchBffSession, destroyBffSession } from '../services/bffSession';
 
 interface AuthContextType {
   user: User | null;
@@ -10,12 +11,14 @@ interface AuthContextType {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   deductPoints: (amount: number) => Promise<void>;
   updateUserBalance: (balance: number) => void;
   refreshProfile: () => Promise<User | null>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
   resendConfirmationEmail: (email: string) => Promise<void>;
+  hasRole: (roles: string | string[]) => boolean;
+  userRoles: string[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,11 +41,76 @@ interface ProfileFetchError extends Error {
 const PROFILE_FETCH_TIMEOUT_MS = 30000;
 const PROFILE_FETCH_RETRY_DELAY_MS = 500;
 const MAX_PROFILE_FETCH_ATTEMPTS = 2;
+const DEFAULT_ROLE = 'user';
+const EMPTY_ROLES: string[] = [];
+
+const normalizeRoleInput = (input: unknown): string[] => {
+  if (!input) {
+    return [];
+  }
+
+  if (Array.isArray(input)) {
+    return input
+      .map((role) => (typeof role === 'string' ? role : String(role)))
+      .map((role) => role.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof input === 'string') {
+    return input
+      .split(',')
+      .map((role) => role.trim())
+      .filter(Boolean);
+  }
+
+  return [String(input)];
+};
+
+const extractRolesFromSession = (sessionUser: Session['user']): string[] => {
+  const rawRoles = [
+    ...normalizeRoleInput(sessionUser.app_metadata?.roles),
+    ...normalizeRoleInput(sessionUser.app_metadata?.role),
+    ...normalizeRoleInput(sessionUser.user_metadata?.roles),
+    ...normalizeRoleInput(sessionUser.user_metadata?.role),
+  ];
+
+  const normalized = new Set<string>(
+    rawRoles.map((role) => role.toLowerCase())
+  );
+
+  normalized.add(DEFAULT_ROLE);
+
+  return Array.from(normalized);
+};
+
+const mergeRoleSets = (...roleSets: Array<string[] | undefined>): string[] => {
+  const merged = new Set<string>();
+
+  for (const roles of roleSets) {
+    if (!roles) {
+      continue;
+    }
+
+    roles.forEach((role) => {
+      if (typeof role === 'string' && role.trim().length > 0) {
+        merged.add(role.toLowerCase());
+      }
+    });
+  }
+
+  if (!merged.has(DEFAULT_ROLE)) {
+    merged.add(DEFAULT_ROLE);
+  }
+
+  return Array.from(merged);
+};
 
 const buildFallbackUser = (sessionUser: Session['user']): User => ({
   id: sessionUser.id,
   email: sessionUser.email || 'No email found',
   balance: 100,
+  roles: extractRolesFromSession(sessionUser),
+  metadata: null,
 });
 
 const classifyPostgrestError = (error: PostgrestError | null): ProfileFetchFailureType => {
@@ -90,6 +158,7 @@ const createProfileFetchError = (
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const userRoles = user?.roles ?? EMPTY_ROLES;
 
   const getAppUserFromSession = useCallback(async (session: Session | null): Promise<User | null> => {
     if (!session?.user) {
@@ -160,11 +229,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                             });
                         }
 
-                        return {
-                            id: session.user.id,
-                            email: session.user.email || 'No email found',
-                            balance: 100,
-                        };
+                        return { ...fallbackUser, balance: 100 };
                     }
 
                     const errorToThrow = createProfileFetchError(
@@ -200,9 +265,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 });
 
                 return {
-                    id: session.user.id,
-                    email: session.user.email || 'No email found',
-                    balance: Number(profile?.balance ?? 100),
+                    ...fallbackUser,
+                    balance: Number(profile?.balance ?? fallbackUser.balance),
                 };
             } catch (error: any) {
                 if (error?.name === 'AbortError') {
@@ -254,6 +318,37 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  const synchronizeBffSession = useCallback(async (candidate: User | null): Promise<User | null> => {
+    if (!candidate) {
+      return null;
+    }
+
+    try {
+      const response = await fetchBffSession();
+      const bffUser = response?.user;
+
+      if (!bffUser) {
+        return candidate;
+      }
+
+      const mergedRoles = mergeRoleSets(candidate.roles, bffUser.roles || []);
+      const metadata =
+        bffUser.metadata && typeof bffUser.metadata === 'object'
+          ? bffUser.metadata
+          : candidate.metadata ?? null;
+
+      return {
+        ...candidate,
+        email: bffUser.email || candidate.email,
+        roles: mergedRoles,
+        metadata,
+      };
+    } catch (error) {
+      console.error('AuthProvider: Failed to synchronize BFF session', error);
+      return candidate;
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     let timeoutId: ReturnType<typeof setTimeout>;
@@ -273,7 +368,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             if (mounted) {
                 try {
                     const appUser = await getAppUserFromSession(session);
-                    setUser(appUser);
+                    const hydratedUser = await synchronizeBffSession(appUser);
+                    setUser(hydratedUser);
                     clearTimeout(timeoutId);
                 } catch (profileError) {
                     const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
@@ -284,7 +380,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                             failureType,
                             userId: session.user.id,
                         });
-                        setUser(buildFallbackUser(session.user));
+                        const fallback = buildFallbackUser(session.user);
+                        const hydratedFallback = await synchronizeBffSession(fallback);
+                        setUser(hydratedFallback);
                     } else if (failureType !== 'timeout' && failureType !== 'permission') {
                         console.warn('AuthProvider: Signing out due to unrecoverable profile fetch error');
                         await supabase.auth.signOut();
@@ -312,7 +410,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             if (mounted) {
                 try {
                     const appUser = await getAppUserFromSession(session);
-                    setUser(appUser);
+                    const hydratedUser = await synchronizeBffSession(appUser);
+                    setUser(hydratedUser);
                 } catch (profileError) {
                     const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
                     console.error("Failed to load user profile during auth state change:", profileError);
@@ -322,7 +421,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                             failureType,
                             userId: session.user.id,
                         });
-                        setUser(buildFallbackUser(session.user));
+                        const fallback = buildFallbackUser(session.user);
+                        const hydratedFallback = await synchronizeBffSession(fallback);
+                        setUser(hydratedFallback);
                     } else if (failureType !== 'timeout' && failureType !== 'permission') {
                         console.warn('AuthProvider: Signing out after auth state change due to profile fetch error');
                         await supabase.auth.signOut();
@@ -340,7 +441,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (timeoutId) clearTimeout(timeoutId);
         subscription.unsubscribe();
     };
-  }, [getAppUserFromSession]);
+  }, [getAppUserFromSession, synchronizeBffSession]);
   
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -361,8 +462,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       const appUser = await getAppUserFromSession(session);
+      const hydratedUser = await synchronizeBffSession(appUser);
 
-      setUser(appUser);
+      setUser(hydratedUser);
     } catch (profileError: any) {
       const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
       console.error('AuthProvider: Failed to resolve profile after sign in', profileError);
@@ -372,7 +474,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           failureType,
           userId: session.user.id,
         });
-        setUser(buildFallbackUser(session.user));
+        const fallback = buildFallbackUser(session.user);
+        const hydratedFallback = await synchronizeBffSession(fallback);
+        setUser(hydratedFallback);
         return;
       }
 
@@ -383,7 +487,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const message = profileError?.message || 'Could not complete sign in.';
       throw new Error(message);
     }
-  }, [getAppUserFromSession]);
+  }, [getAppUserFromSession, synchronizeBffSession]);
 
   const signUp = useCallback(async (email: string, password: string): Promise<void> => {
     const { error } = await supabase.auth.signUp({
@@ -397,11 +501,32 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-     if (error) {
-      console.error("Error signing out:", error.message);
+    try {
+      await destroyBffSession();
+    } catch (error: any) {
+      console.warn('AuthProvider: Failed to terminate BFF session during sign out', error);
     }
+
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error.message);
+      throw new Error(error.message || 'Could not sign out.');
+    }
+
+    setUser(null);
   }, []);
+
+  const hasRole = useCallback((rolesToCheck: string | string[]): boolean => {
+    const requiredRoles = Array.isArray(rolesToCheck) ? rolesToCheck : [rolesToCheck];
+
+    if (requiredRoles.length === 0) {
+      return true;
+    }
+
+    const normalizedUserRoles = new Set(userRoles.map((role) => role.toLowerCase()));
+
+    return requiredRoles.some((role) => normalizedUserRoles.has(role.toLowerCase()));
+  }, [userRoles]);
 
   const updateUserBalance = useCallback((balance: number) => {
     setUser(prevUser => (prevUser ? { ...prevUser, balance: Number(balance) } : prevUser));
@@ -458,8 +583,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     try {
         const appUser = await getAppUserFromSession(session);
-        setUser(appUser);
-        return appUser;
+        const hydratedUser = await synchronizeBffSession(appUser);
+        setUser(hydratedUser);
+        return hydratedUser;
     } catch (profileError) {
         const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
         console.error('AuthProvider: Failed to refresh user profile', profileError);
@@ -470,8 +596,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 userId: session.user.id,
             });
             const fallbackUser = buildFallbackUser(session.user);
-            setUser(fallbackUser);
-            return fallbackUser;
+            const hydratedFallback = await synchronizeBffSession(fallbackUser);
+            setUser(hydratedFallback);
+            return hydratedFallback;
         }
 
         if (failureType !== 'timeout' && failureType !== 'permission') {
@@ -483,7 +610,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             ? profileError
             : new Error('Could not refresh profile.');
     }
-  }, [getAppUserFromSession]);
+  }, [getAppUserFromSession, synchronizeBffSession]);
 
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resend({
@@ -499,7 +626,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, updateUserBalance, refreshProfile, sendPasswordResetEmail, resendConfirmationEmail }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, deductPoints, updateUserBalance, refreshProfile, sendPasswordResetEmail, resendConfirmationEmail, hasRole, userRoles }}>
       {children}
     </AuthContext.Provider>
   );

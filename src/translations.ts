@@ -74,6 +74,7 @@ export const translations = {
     fileFetchError: "Could not retrieve file details. The URL might be incorrect or the file is unavailable.",
     // Fix: Add missing stock downloader translation keys
     recentOrders: "Recent Orders",
+    noRecentOrders: "No recent orders yet.",
     cost: "Cost",
     processingStatus: "Processing",
     readyStatus: "Ready",
@@ -144,6 +145,7 @@ export const translations = {
     debugId: "Debug ID",
     status: "Status",
     action: "Action",
+    actions: "Actions",
   },
   ar: {
     // General
@@ -220,6 +222,7 @@ export const translations = {
     fileFetchError: "تعذر جلب تفاصيل الملف. قد يكون الرابط غير صحيح أو الملف غير متوفر.",
     // Fix: Add missing stock downloader translation keys
     recentOrders: "الطلبات الأخيرة",
+    noRecentOrders: "لا توجد طلبات حديثة بعد.",
     cost: "التكلفة",
     processingStatus: "قيد المعالجة",
     readyStatus: "جاهز",
@@ -290,5 +293,6 @@ export const translations = {
     debugId: "معرف التصحيح",
     status: "الحالة",
     action: "الإجراء",
+    actions: "الإجراءات",
   }
 };

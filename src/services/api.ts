@@ -1,42 +1,94 @@
-
+import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { supabase } from './supabaseClient';
 
 const API_BASE_URL = '/api';
+const DEFAULT_TIMEOUT = 30000;
 
-interface ApiFetchOptions extends RequestInit {
-  timeout?: number;
+export interface ApiFetchOptions extends AxiosRequestConfig {
   auth?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  body?: any; // Allow any body type for processing
+  body?: unknown;
 }
 
-/**
- * A shared, hardened helper function to make authenticated API requests.
- * It includes a guaranteed timeout, automatically adds the API key,
- * handles JSON body serialization, and provides consistent error handling.
- * For GET requests, it converts the body into URL search parameters.
- * @param endpoint The API endpoint to call (e.g., '/stockinfo/shutterstock/123').
- * @param options The request options, including method, body, and timeout.
- * @returns A promise that resolves with the JSON response.
- */
+interface NormalizedError {
+  message: string;
+  status?: number;
+  data?: unknown;
+}
+
+const createRequestId = () => `rq_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  timeout: DEFAULT_TIMEOUT,
+});
+
+type MaybePromise<T> = T | Promise<T>;
+
+type RequestInterceptor = (config: AxiosRequestConfig) => MaybePromise<AxiosRequestConfig>;
+
+const requestInterceptor: RequestInterceptor = async (config) => {
+  const headers = config.headers ?? (config.headers = {});
+  if (!headers['X-Request-ID']) {
+    headers['X-Request-ID'] = createRequestId();
+  }
+  return config;
+};
+
+const responseInterceptor = (response: AxiosResponse) => {
+  return response;
+};
+
+const buildNormalizedError = (error: AxiosError): NormalizedError => {
+  if (error.response) {
+    const responseData = error.response.data;
+    const message =
+      (typeof responseData === 'object' && responseData !== null && 'message' in responseData)
+        ? String((responseData as Record<string, unknown>).message)
+        : error.message;
+
+    return {
+      message,
+      status: error.response.status,
+      data: responseData,
+    };
+  }
+
+  if (error.code === 'ECONNABORTED') {
+    return {
+      message: `The request timed out after ${(error.config?.timeout ?? DEFAULT_TIMEOUT) / 1000} seconds. Please try again.`,
+    };
+  }
+
+  return {
+    message: error.message || 'Unable to complete the request. Please try again.',
+  };
+};
+
+const errorInterceptor = (error: AxiosError) => {
+  const normalized = buildNormalizedError(error);
+  const enrichedError = new Error(normalized.message);
+  (enrichedError as Error & NormalizedError).status = normalized.status;
+  (enrichedError as Error & NormalizedError).data = normalized.data;
+  throw enrichedError;
+};
+
+apiClient.interceptors.request.use(requestInterceptor);
+apiClient.interceptors.response.use(responseInterceptor, errorInterceptor);
+
+export const getApiClient = () => apiClient;
+
 export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) => {
-  const { timeout = 30000, body, auth = false, ...fetchOptions } = options;
+  const { auth = false, body, method = 'GET', timeout = DEFAULT_TIMEOUT, params, ...rest } = options;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
-  let finalEndpoint = endpoint;
-
-  const headers: HeadersInit = {
-    ...fetchOptions.headers,
+  const config: AxiosRequestConfig = {
+    url: endpoint,
+    method,
+    timeout,
+    ...rest,
   };
 
-  const config: RequestInit = {
-    ...fetchOptions,
-    headers,
-    signal: controller.signal,
-    credentials: 'include',
-  };
+  const upperMethod = method?.toString().toUpperCase() ?? 'GET';
 
   if (auth) {
     try {
@@ -50,61 +102,37 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
         throw new Error('You must be signed in to perform this action.');
       }
 
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    } catch (authError: any) {
-      clearTimeout(timeoutId);
-      throw new Error(authError?.message || 'Unable to authenticate request.');
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${accessToken}`,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(error.message || 'Unable to authenticate request.');
+      }
+      throw new Error('Unable to authenticate request.');
     }
   }
-  
-  const method = (config.method || 'GET').toUpperCase();
 
   if (body) {
-    if (method === 'GET' || method === 'HEAD') {
-      // For GET requests, convert body object to URL query parameters
-      const params = new URLSearchParams(body);
-      finalEndpoint += `?${params.toString()}`;
+    if (upperMethod === 'GET' || upperMethod === 'HEAD') {
+      config.params = {
+        ...(params || {}),
+        ...(typeof body === 'object' ? body : {}),
+      };
     } else {
-      // For other methods (POST, PUT, etc.), use a JSON body
-      headers['Content-Type'] = 'application/json';
-      config.body = JSON.stringify(body);
+      config.data = body;
+      config.headers = {
+        'Content-Type': 'application/json',
+        ...config.headers,
+      };
     }
+  } else if (params) {
+    config.params = params;
   }
 
-  try {
-    const fullUrl = `${API_BASE_URL}${finalEndpoint}`;
-    console.log('🌐 API Request:', method, fullUrl);
-    
-    const response = await fetch(fullUrl, config);
-    
-    console.log('📡 API Response:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        console.error('❌ API Error Data:', errorData);
-        errorMessage = errorData.message || errorData.error || errorData.data || errorMessage;
-      } catch (e) {
-        // Ignore if the body isn't JSON or is empty.
-        console.warn('⚠️ Could not parse error response as JSON');
-      }
-      throw new Error(errorMessage);
-    }
-    
-    // Handle successful responses that may not have content to parse
-    const text = await response.text();
-    const result = text ? JSON.parse(text) : null;
-    console.log('✅ API Success:', result);
-    return result;
-
-  } catch (error: any) {
-    console.error('🔥 API Fetch Error:', error);
-    if (error.name === 'AbortError') {
-      throw new Error(`The request timed out after ${timeout / 1000} seconds. Please try again.`);
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  const response = await apiClient.request(config);
+  return response.data;
 };
+
+export type ApiClient = typeof apiClient;

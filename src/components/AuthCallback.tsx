@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useLanguage } from '../contexts/LanguageContext';
 import { ArrowPathIcon, CheckCircleIcon } from './icons/Icons';
 
 const AuthCallback = () => {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
-    const { t } = useLanguage();
     const [status, setStatus] = useState<'verifying' | 'verified'>('verifying');
     const [countdown, setCountdown] = useState(5);
 
@@ -28,7 +26,7 @@ const AuthCallback = () => {
 
             // Redirect after 5 seconds
             const redirectTimer = setTimeout(() => {
-                navigate('/', { replace: true });
+                navigate('/app', { replace: true });
             }, 5000);
 
             return () => {
@@ -89,7 +87,7 @@ const AuthCallback = () => {
                             
                             {/* Manual Button */}
                             <button
-                                onClick={() => navigate('/', { replace: true })}
+                                onClick={() => navigate('/app', { replace: true })}
                                 className="mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
                             >
                                 Go to Dashboard Now →
