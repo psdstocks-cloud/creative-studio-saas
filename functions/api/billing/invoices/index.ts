@@ -5,6 +5,7 @@ import {
   handleUnexpectedError,
   INVOICE_WITH_ITEMS_SELECT,
   mapInvoice,
+  isMissingTableError,
 } from '../_shared';
 import type { BillingEnv } from '../_shared';
 
@@ -26,6 +27,9 @@ export const onRequest = async ({ request, env }: { request: Request; env: Billi
       .order('created_at', { ascending: false });
 
     if (error) {
+      if (isMissingTableError(error, 'invoices')) {
+        return ok(request, { invoices: [] });
+      }
       throw new Error(error.message || 'Unable to load invoices.');
     }
 
