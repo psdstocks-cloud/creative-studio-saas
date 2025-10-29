@@ -46,7 +46,7 @@ interface ProfileFetchError extends Error {
   original?: unknown;
 }
 
-const PROFILE_FETCH_TIMEOUT_MS = 30000;
+const PROFILE_FETCH_TIMEOUT_MS = 5000; // Reduced to 5 seconds - should be quick from Supabase
 const PROFILE_FETCH_RETRY_DELAY_MS = 500;
 const MAX_PROFILE_FETCH_ATTEMPTS = 2;
 const DEFAULT_ROLE = 'user';
@@ -383,13 +383,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     async function initializeAuth() {
       try {
-        // Set a timeout to force loading to false after 30 seconds
+        // Set a timeout to force loading to false after 15 seconds
+        // Profile fetch: 5s × 2 attempts = 10s max
+        // BFF session: 5s timeout
+        // Total should be ~15s max
         timeoutId = setTimeout(() => {
           if (mounted) {
-            console.warn('Auth initialization timed out after 30 seconds');
+            console.warn('Auth initialization timed out after 15 seconds');
             setIsLoading(false);
           }
-        }, 30000); // Increased to 30 seconds for slow connections
+        }, 15000);
 
         const {
           data: { session },
