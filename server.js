@@ -1331,19 +1331,16 @@ app.use('/api', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// Static assets & SPA fallback
+// 404 Handler for unmatched routes
 // ---------------------------------------------------------------------------
+// Note: Frontend is deployed separately on Cloudflare Pages.
+// This BFF server only handles API routes.
 
-const buildPath = path.join(__dirname, 'dist');
-
-app.use(express.static(buildPath));
-
-app.get('/*', (req, res) => {
-  res.sendFile(path.join(buildPath, 'index.html'), (err) => {
-    if (err) {
-      console.error('Error sending index.html:', err);
-      res.status(500).send('An error occurred');
-    }
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Route ${req.method} ${req.path} not found`,
+    note: 'This is a BFF (Backend-for-Frontend) API server. The frontend is deployed separately.'
   });
 });
 
