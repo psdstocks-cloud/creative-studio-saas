@@ -33,9 +33,14 @@ const resolveEndpoint = (endpoint: string) => {
       : `${API_BASE_PATH}${normalizedEndpoint}`;
   }
 
-  const path = normalizedEndpoint.startsWith(API_BASE_PATH)
-    ? normalizedEndpoint.slice(API_BASE_PATH.length) || '/'
-    : normalizedEndpoint;
+  let path = normalizedEndpoint;
+
+  if (baseApiUrl.endsWith(API_BASE_PATH) && normalizedEndpoint.startsWith(API_BASE_PATH)) {
+    path = normalizedEndpoint.slice(API_BASE_PATH.length) || '/';
+    if (!path.startsWith('/')) {
+      path = `/${path}`;
+    }
+  }
 
   return `${baseApiUrl}${path}`;
 };
