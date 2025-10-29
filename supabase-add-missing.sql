@@ -201,6 +201,103 @@ BEGIN
 END;
 $$;
 
+-- 11. apply_paid_invoice helper function
+CREATE OR REPLACE FUNCTION public.apply_paid_invoice(p_invoice_id uuid)
+RETURNS public.invoices
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_invoice public.invoices;
+  v_subscription public.subscriptions;
+  v_plan_points integer := 0;
+  v_period_start timestamptz;
+  v_period_end timestamptz;
+  v_plan_snapshot jsonb;
+BEGIN
+  SELECT *
+  INTO v_invoice
+  FROM public.invoices
+  WHERE id = p_invoice_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Invoice % not found', p_invoice_id;
+  END IF;
+
+  IF v_invoice.status = 'paid' THEN
+    RETURN v_invoice;
+  END IF;
+
+  SELECT *
+  INTO v_subscription
+  FROM public.subscriptions
+  WHERE id = v_invoice.subscription_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Subscription % not found for invoice %', v_invoice.subscription_id, p_invoice_id;
+  END IF;
+
+  v_plan_snapshot := v_invoice.plan_snapshot;
+  v_plan_points := COALESCE((v_plan_snapshot->>'monthly_points')::integer, 0);
+
+  IF v_plan_points IS NULL OR v_plan_points = 0 THEN
+    SELECT COALESCE(monthly_points, 0)
+    INTO v_plan_points
+    FROM public.plans
+    WHERE id = v_subscription.plan_id;
+  END IF;
+
+  v_period_start := v_invoice.period_start;
+  v_period_end := v_invoice.period_end;
+
+  UPDATE public.invoices
+     SET status = 'paid',
+         next_payment_attempt = NULL,
+         updated_at = now()
+   WHERE id = v_invoice.id
+   RETURNING * INTO v_invoice;
+
+  IF v_plan_points > 0 THEN
+    UPDATE public.profiles
+       SET balance = balance + v_plan_points,
+           updated_at = now()
+     WHERE id = v_invoice.user_id;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM public.transactions t
+      WHERE t.user_id = v_invoice.user_id
+        AND t.type = 'subscription_grant'
+        AND t.metadata->>'invoice_id' = v_invoice.id::text
+    ) THEN
+      INSERT INTO public.transactions (user_id, amount, type, metadata)
+      VALUES (
+        v_invoice.user_id,
+        v_plan_points,
+        'subscription_grant',
+        jsonb_build_object('invoice_id', v_invoice.id, 'subscription_id', v_subscription.id)
+      );
+    END IF;
+  END IF;
+
+  UPDATE public.subscriptions
+     SET current_period_start = v_period_start,
+         current_period_end = v_period_end,
+         status = 'active',
+         last_invoice_id = v_invoice.id,
+         updated_at = now()
+   WHERE id = v_subscription.id;
+
+  RETURN v_invoice;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_paid_invoice(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.apply_paid_invoice(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.apply_paid_invoice(uuid) TO authenticated;
+
 -- Invoice line items
 CREATE TABLE IF NOT EXISTS public.invoice_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
