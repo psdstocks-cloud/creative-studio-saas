@@ -14,6 +14,7 @@ import ApiDocumentation from './components/ApiDocumentation';
 import FilesManager from './components/FilesManager';
 import Billing from './pages/Billing';
 import Receipt from './pages/Receipt';
+import Account from './pages/Account';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -59,6 +60,7 @@ const App = () => {
             <Route path="pricing" element={<Pricing />} />
             <Route path="billing" element={<Billing />} />
             <Route path="billing/receipt/:id" element={<Receipt />} />
+            <Route path="account" element={<Account />} />
             <Route path="*" element={<Navigate to="/app" replace />} />
           </Route>
 
