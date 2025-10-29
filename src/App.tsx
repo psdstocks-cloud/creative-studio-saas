@@ -1,20 +1,30 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import Sidebar from './components/Sidebar';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import LandingPage from './components/LandingPage';
+import AuthCallback from './components/AuthCallback';
+import ResetPassword from './components/ResetPassword';
+import Pricing from './pages/Pricing';
+import { useLanguage } from './contexts/LanguageContext';
+import { useAuth } from './contexts/AuthContext';
+import UserAppLayout from './layouts/UserAppLayout';
 import Home from './components/Home';
 import StockDownloader from './components/StockDownloader';
 import AiGenerator from './components/AiGenerator';
 import ApiDocumentation from './components/ApiDocumentation';
-import LandingPage from './components/LandingPage';
-import Footer from './components/Footer';
-import { useLanguage } from './contexts/LanguageContext';
-import { useAuth } from './contexts/AuthContext';
-import AuthCallback from './components/AuthCallback';
 import FilesManager from './components/FilesManager';
-import ResetPassword from './components/ResetPassword';
-import Pricing from './pages/Pricing';
 import Billing from './pages/Billing';
 import Receipt from './pages/Receipt';
+import Account from './pages/Account';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminLayout from './layouts/AdminLayout';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminOrders from './pages/admin/AdminOrders';
+import AdminAiJobs from './pages/admin/AdminAiJobs';
+import AdminStockSources from './pages/admin/AdminStockSources';
+import AdminFiles from './pages/admin/AdminFiles';
+import AdminAudit from './pages/admin/AdminAudit';
+import AdminSettings from './pages/admin/AdminSettings';
 
 const App = () => {
   const { language } = useLanguage();
@@ -28,42 +38,60 @@ const App = () => {
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-t-2 border-blue-500" />
       </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="*" element={<LandingPage />} />
-      </Routes>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-900 gradient-bg text-gray-800 dark:text-gray-200">
-      <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/stock" element={<StockDownloader />} />
-            <Route path="/ai" element={<AiGenerator />} />
-            <Route path="/files" element={<FilesManager />} />
-            <Route path="/api" element={<ApiDocumentation />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/dashboard/billing" element={<Billing />} />
-            <Route path="/billing/receipt/:id" element={<Receipt />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
-    </div>
+    <Routes>
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/pricing" element={<Pricing />} />
+
+      {isAuthenticated ? (
+        <>
+          <Route path="/app/*" element={<UserAppLayout />}>
+            <Route index element={<Home />} />
+            <Route path="stock" element={<StockDownloader />} />
+            <Route path="ai" element={<AiGenerator />} />
+            <Route path="files" element={<FilesManager />} />
+            <Route path="api" element={<ApiDocumentation />} />
+            <Route path="pricing" element={<Pricing />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="billing/receipt/:id" element={<Receipt />} />
+            <Route path="account" element={<Account />} />
+            <Route path="*" element={<Navigate to="/app" replace />} />
+          </Route>
+
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute requiredRoles={["admin", "ops", "support", "finance", "superadmin"]}>
+                <AdminLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="aijobs" element={<AdminAiJobs />} />
+            <Route path="stock-sources" element={<AdminStockSources />} />
+            <Route path="files" element={<AdminFiles />} />
+            <Route path="audit" element={<AdminAudit />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
+
+          <Route path="/" element={<Navigate to="/app" replace />} />
+          <Route path="*" element={<Navigate to="/app" replace />} />
+        </>
+      ) : (
+        <>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </>
+      )}
+    </Routes>
   );
 };
 

@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
+        'axios': path.resolve(__dirname, 'src/vendor/axios.ts'),
       },
     },
     build: {

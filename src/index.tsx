@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { QueryClientProvider, queryClient } from './lib/queryClient';
+import { LayoutProvider } from './stores/layoutStore';
 import { config } from './config';
 import './input.css';
 
@@ -39,11 +41,15 @@ if (!config.supabase.isAvailable) {
   root.render(
     <AppWrapper>
       <BrowserRouter>
-        <LanguageProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </LanguageProvider>
+        <QueryClientProvider client={queryClient}>
+          <LayoutProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            </LanguageProvider>
+          </LayoutProvider>
+        </QueryClientProvider>
       </BrowserRouter>
     </AppWrapper>
   );

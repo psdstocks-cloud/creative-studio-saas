@@ -21,6 +21,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "axios": [
+        "./src/vendor/axios"
       ]
     },
     "allowImportingTsExtensions": true,
