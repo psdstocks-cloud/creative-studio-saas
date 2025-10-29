@@ -4,7 +4,7 @@ const SECURITY_HEADERS: Record<string, string> = {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://*.supabase.co https://*.supabase.in https://nehtw.com https://generativelanguage.googleapis.com",
+    "connect-src 'self' https://*.supabase.co https://*.supabase.in https://*.railway.app https://nehtw.com https://generativelanguage.googleapis.com",
     "font-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
