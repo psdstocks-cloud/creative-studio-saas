@@ -7,7 +7,6 @@ import {
   fetchPlans,
   fetchSubscription,
   fetchInvoices,
-  toggleCancelAtPeriodEnd,
   changeSubscriptionPlan,
 } from '../services/billingService';
 import type { BillingPlan, BillingSubscription, Invoice } from '../types';
@@ -130,31 +129,6 @@ const Billing: React.FC = () => {
     loadData();
   }, [isAuthenticated]);
 
-  const handleToggleCancel = async () => {
-    if (!subscription) return;
-
-    try {
-      setActionLoading(true);
-      const updated = await toggleCancelAtPeriodEnd(!subscription.cancel_at_period_end);
-      if (updated) {
-        setSubscription(updated);
-        if (!updated.cancel_at_period_end) {
-          try {
-            await refreshProfile();
-          } catch (refreshError) {
-            console.error('Billing: Failed to refresh profile after resuming subscription', refreshError);
-          }
-        }
-      }
-    } catch (err: any) {
-      if (handleError(err)) {
-        setAuthModalOpen(true);
-      }
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handlePlanChange = async (plan: BillingPlan) => {
     if (!subscription) {
       navigate('/pricing');
@@ -236,18 +210,18 @@ const Billing: React.FC = () => {
                         : `Next renewal on ${nextPeriodEnd}.`}
                     </p>
                   )}
-                  <div className="mt-6 flex flex-wrap items-center gap-3">
-                    <button
-                      onClick={handleToggleCancel}
-                      disabled={actionLoading}
-                      className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                        subscription.cancel_at_period_end
-                          ? 'bg-green-600 hover:bg-green-500 text-white'
-                          : 'bg-red-600 hover:bg-red-500 text-white'
-                      } ${actionLoading ? 'opacity-70 cursor-progress' : ''}`}
-                    >
-                      {subscription.cancel_at_period_end ? 'Resume subscription' : 'Cancel at period end'}
-                    </button>
+                  <div className="mt-6 space-y-3">
+                    <p className="text-sm text-gray-300">
+                      Need to make changes or cancel? Email{' '}
+                      <a
+                        href="mailto:subscription@creativesaas.com"
+                        className="font-semibold text-blue-300 hover:text-blue-200"
+                      >
+                        subscription@creativesaas.com
+                      </a>{' '}
+                      with at least 5 days&#39; notice before your next renewal so we can process
+                      the request.
+                    </p>
                     <button
                       onClick={() => navigate('/pricing')}
                       className="rounded-lg border border-gray-700 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-gray-800"
