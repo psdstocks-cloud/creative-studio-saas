@@ -149,8 +149,12 @@ const AdminDashboard = () => {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">{order.user_id}</td>
-                  <td className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300">{order.status}</td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{new Date(order.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                    {order.status}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400">
+                    {new Date(order.created_at).toLocaleString()}
+                  </td>
                 </tr>
               ))}
             </tbody>

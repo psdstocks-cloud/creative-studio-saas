@@ -62,9 +62,7 @@ const AdminFiles = () => {
               target="_blank"
               rel="noopener noreferrer"
               className={`mt-4 inline-flex items-center gap-2 text-sm font-medium ${
-                file.download_url
-                  ? 'text-sky-300 hover:text-sky-200'
-                  : 'cursor-not-allowed text-slate-500'
+                file.download_url ? 'text-sky-300 hover:text-sky-200' : 'cursor-not-allowed text-slate-500'
               }`}
             >
               <LinkIcon className="h-4 w-4" />
@@ -79,6 +77,7 @@ const AdminFiles = () => {
           <ArrowPathIcon className="h-4 w-4 animate-spin" /> Loading files…
         </div>
       ) : null}
+
       {!isLoading && files.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950/30 p-4 text-center text-sm text-slate-500">
           No downloadable files captured yet.

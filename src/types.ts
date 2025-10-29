@@ -30,7 +30,7 @@ export interface StockFileInfo {
   ext?: string;
   sizeInBytes?: number | string;
   debugid?: string;
-  source_url?: string;  // ← Add this
+  source_url?: string; // Added
 }
 
 export interface StockOrder {
@@ -39,16 +39,15 @@ export interface StockOrder {
 }
 
 // ✅ UPDATED: Support multiple possible response formats from API
-// ✅ UPDATED: Support multiple possible response formats from API
 export interface StockDownloadLink {
   downloadLink?: string;
   url?: string;
   download_url?: string;
   link?: string;
   data?: {
-      downloadLink?: string;  // ← ADD THIS!
-      url?: string;
-      download_url?: string;
+    downloadLink?: string;
+    url?: string;
+    download_url?: string;
   };
 }
 
@@ -56,7 +55,7 @@ export interface SupportedSite {
   key: string;
   name: string;
   cost: number | string | null;
-  iconUrl: string;
+  iconUrl?: string;
 }
 
 export interface User {
@@ -216,7 +215,7 @@ export interface Database {
           user_id: string;
           task_id: string;
           file_info: StockFileInfo;
-          status: "processing" | "ready" | "failed" | "payment_failed";
+          status: 'processing' | 'ready' | 'failed' | 'payment_failed';
           download_url?: string | null;
         };
         Update: Partial<Order>;

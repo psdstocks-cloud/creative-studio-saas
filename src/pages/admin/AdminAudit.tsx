@@ -33,11 +33,16 @@ const AdminAudit = () => {
 
       <div className="space-y-4">
         {entries.map((entry) => (
-          <div key={`${entry.requestId}-${entry.timestamp}`} className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+          <div
+            key={`${entry.requestId}-${entry.timestamp}`}
+            className="rounded-xl border border-slate-800 bg-slate-900/60 p-5"
+          >
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-slate-100">{entry.action}</p>
-                <p className="mt-1 text-xs text-slate-400">{entry.method} {entry.path}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {entry.method} {entry.path}
+                </p>
               </div>
               <div className="text-right text-xs text-slate-500">
                 <p>{entry.timestamp}</p>
@@ -67,11 +72,13 @@ const AdminAudit = () => {
             ) : null}
           </div>
         ))}
+
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 rounded-lg border border-slate-800/60 bg-slate-900/60 p-4 text-xs text-slate-400">
             <ArrowPathIcon className="h-4 w-4 animate-spin" /> Loading audit events…
           </div>
         ) : null}
+
         {!isLoading && entries.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950/30 p-4 text-center text-sm text-slate-500">
             No audit events recorded yet.

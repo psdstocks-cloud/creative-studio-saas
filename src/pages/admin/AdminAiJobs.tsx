@@ -4,16 +4,33 @@ import { useAdminAiActivity } from '../../hooks/admin/useAdminAiActivity';
 import { ArrowPathIcon } from '../../components/icons/Icons';
 
 const renderStatusBadge = (status?: string) => {
-  const base = 'inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide';
+  const base =
+    'inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide';
   switch (status) {
     case 'completed':
-      return <span className={`${base} border-emerald-500/40 bg-emerald-500/10 text-emerald-300`}>Completed</span>;
+      return (
+        <span className={`${base} border-emerald-500/40 bg-emerald-500/10 text-emerald-300`}>
+          Completed
+        </span>
+      );
     case 'processing':
-      return <span className={`${base} border-amber-500/40 bg-amber-500/10 text-amber-300`}>Processing</span>;
+      return (
+        <span className={`${base} border-amber-500/40 bg-amber-500/10 text-amber-300`}>
+          Processing
+        </span>
+      );
     case 'failed':
-      return <span className={`${base} border-rose-500/40 bg-rose-500/10 text-rose-300`}>Failed</span>;
+      return (
+        <span className={`${base} border-rose-500/40 bg-rose-500/10 text-rose-300`}>
+          Failed
+        </span>
+      );
     default:
-      return <span className={`${base} border-slate-600 bg-slate-800/70 text-slate-300`}>{status || 'Unknown'}</span>;
+      return (
+        <span className={`${base} border-slate-600 bg-slate-800/70 text-slate-300`}>
+          {status || 'Unknown'}
+        </span>
+      );
   }
 };
 
@@ -32,7 +49,8 @@ const AdminAiJobs = () => {
       <header className="space-y-2">
         <h2 className="text-2xl font-semibold text-slate-50">AI Job Monitor</h2>
         <p className="text-sm text-slate-400">
-          Inspect generation jobs by ID, monitor upstream polling responses, and review recent AI-related audit events.
+          Inspect generation jobs by ID, monitor upstream polling responses, and review recent
+          AI-related audit events.
         </p>
       </header>
 
@@ -59,7 +77,11 @@ const AdminAiJobs = () => {
             type="submit"
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
           >
-            {jobQuery.isFetching ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <ArrowPathIcon className="h-4 w-4" />}
+            {jobQuery.isFetching ? (
+              <ArrowPathIcon className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowPathIcon className="h-4 w-4" />
+            )}
             {selectedJobId ? 'Refetch Job' : 'Lookup Job'}
           </button>
         </form>
@@ -75,7 +97,7 @@ const AdminAiJobs = () => {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-1">
               <h3 className="text-lg font-semibold text-slate-100">Job Detail</h3>
-              <p className="text-xs font-mono text-slate-500">{job._id}</p>
+              <p className="font-mono text-xs text-slate-500">{job._id}</p>
               {renderStatusBadge(job.status)}
             </div>
             <div className="text-sm text-slate-400">
@@ -109,7 +131,9 @@ const AdminAiJobs = () => {
                         alt={`Output ${file.index}`}
                         className="h-40 w-full object-cover transition-transform duration-200 group-hover:scale-105"
                       />
-                      <div className="border-t border-slate-800/60 px-3 py-2 text-xs text-slate-400">Download #{file.index + 1}</div>
+                      <div className="border-t border-slate-800/60 px-3 py-2 text-xs text-slate-400">
+                        Download #{file.index + 1}
+                      </div>
                     </a>
                   ))}
                 </div>
@@ -129,17 +153,26 @@ const AdminAiJobs = () => {
 
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
         <h3 className="text-lg font-semibold text-slate-100">Recent AI Activity</h3>
-        <p className="mt-1 text-sm text-slate-400">Events derived from the audit log that reference `/aig/*` endpoints.</p>
+        <p className="mt-1 text-sm text-slate-400">
+          Events derived from the audit log that reference <code className="font-mono">/aig/*</code> endpoints.
+        </p>
         <div className="mt-4 space-y-4">
           {(activityQuery.data || []).map((entry) => (
-            <div key={`${entry.requestId}-${entry.timestamp}`} className="rounded-lg border border-slate-800/60 bg-slate-950/40 p-4">
+            <div
+              key={`${entry.requestId}-${entry.timestamp}`}
+              className="rounded-lg border border-slate-800/60 bg-slate-950/40 p-4"
+            >
               <p className="text-sm font-semibold text-slate-200">{entry.action}</p>
-              <p className="mt-1 text-xs text-slate-400">{entry.method} {entry.path}</p>
+              <p className="mt-1 text-xs text-slate-400">
+                {entry.method} {entry.path}
+              </p>
               <p className="mt-1 text-xs text-slate-500">
                 {entry.actor?.email || entry.actor?.id || 'Unknown actor'} • {entry.timestamp}
               </p>
               {entry.metadata?.auditReason ? (
-                <p className="mt-2 text-xs text-slate-400">Reason: {String(entry.metadata.auditReason)}</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  Reason: {String(entry.metadata.auditReason)}
+                </p>
               ) : null}
             </div>
           ))}

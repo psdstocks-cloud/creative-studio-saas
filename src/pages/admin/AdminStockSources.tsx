@@ -54,16 +54,20 @@ const AdminStockSources = () => {
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-500">{source.key}</td>
                 <td className="px-4 py-3 text-sm text-slate-200">{source.cost ?? '—'}</td>
-                <td className="px-4 py-3 text-xs text-slate-400">{source.active === false ? 'Disabled' : 'Enabled'}</td>
+                <td className="px-4 py-3 text-xs text-slate-400">
+                  {source.active === false ? 'Disabled' : 'Enabled'}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 border-t border-slate-800/60 bg-slate-900/60 px-4 py-3 text-xs text-slate-400">
             <ArrowPathIcon className="h-4 w-4 animate-spin" /> Loading sources…
           </div>
         ) : null}
+
         {!isLoading && sources.length === 0 ? (
           <div className="border-t border-dashed border-slate-700 bg-slate-950/30 p-6 text-center text-sm text-slate-500">
             No stock sources returned from the API.

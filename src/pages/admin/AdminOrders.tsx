@@ -56,9 +56,7 @@ const AdminOrders = () => {
 
   const handleRegenerate = async (order: Order) => {
     const reason = window.prompt('Provide an audit reason for regenerating this link');
-    if (!reason) {
-      return;
-    }
+    if (!reason) return;
 
     setPending(order.task_id, true);
     try {
@@ -272,11 +270,13 @@ const AdminOrders = () => {
             ))}
           </tbody>
         </table>
+
         {query.isLoading ? (
           <div className="flex items-center justify-center gap-2 border-t border-slate-800/60 bg-slate-900/60 px-4 py-3 text-xs text-slate-400">
             <ArrowPathIcon className="h-4 w-4 animate-spin" /> Loading orders…
           </div>
         ) : null}
+
         {!query.isLoading && orders.length === 0 ? (
           <div className="border-t border-dashed border-slate-700 bg-slate-950/30 p-6 text-center text-sm text-slate-500">
             No orders match the current filters.
