@@ -371,13 +371,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     async function initializeAuth() {
       try {
-        // Set a timeout to force loading to false after 15 seconds
+        // Set a timeout to force loading to false after 30 seconds
         timeoutId = setTimeout(() => {
           if (mounted) {
-            console.warn('Auth initialization timed out after 15 seconds');
+            console.warn('Auth initialization timed out after 30 seconds');
             setIsLoading(false);
           }
-        }, 15000); // Increased to 15 seconds
+        }, 30000); // Increased to 30 seconds for slow connections
 
         const {
           data: { session },
