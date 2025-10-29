@@ -46,7 +46,7 @@ interface ProfileFetchError extends Error {
   original?: unknown;
 }
 
-const PROFILE_FETCH_TIMEOUT_MS = 5000; // Reduced to 5 seconds - should be quick from Supabase
+const PROFILE_FETCH_TIMEOUT_MS = 5000;
 const PROFILE_FETCH_RETRY_DELAY_MS = 500;
 const MAX_PROFILE_FETCH_ATTEMPTS = 2;
 const DEFAULT_ROLE = 'user';
@@ -83,7 +83,6 @@ const extractRolesFromSession = (sessionUser: Session['user']): string[] => {
   ];
 
   const normalized = new Set<string>(rawRoles.map((role) => role.toLowerCase()));
-
   normalized.add(DEFAULT_ROLE);
 
   return Array.from(normalized);
@@ -213,9 +212,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
               if (failureType === 'missing') {
                 logger.info('Creating missing profile for user', { userId: session.user.id });
+                
+                // Fixed: Type assertion for insert
                 const { error: insertError, status: insertStatus } = await supabase
                   .from('profiles')
-                  .insert([{ id: session.user.id, balance: 100 }]);
+                  .insert([{ id: session.user.id, balance: 100 }] as any);
 
                 if (insertError) {
                   logger.error('Error creating profile', insertError, {
@@ -266,9 +267,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               userId: session.user.id,
             });
 
+            // Fixed: Null check for profile
             return {
               ...fallbackUser,
-              balance: Number(profile?.balance ?? fallbackUser.balance),
+              balance: profile ? Number(profile.balance ?? fallbackUser.balance) : fallbackUser.balance,
             };
           } catch (error: any) {
             if (error?.name === 'AbortError') {
@@ -281,7 +283,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 continue;
               }
               lastError = createProfileFetchError(
-                'Profile fetch timeout after 30 seconds',
+                'Profile fetch timeout after 5 seconds',
                 'timeout',
                 {
                   original: error,
@@ -338,7 +340,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       try {
-        // Add a 5-second timeout - if BFF doesn't respond quickly, skip it
         const timeoutPromise = new Promise<null>((_, reject) => {
           setTimeout(() => reject(new Error('BFF session timeout')), 5000);
         });
@@ -370,7 +371,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         };
       } catch (error) {
         console.warn('AuthProvider: Failed to synchronize BFF session, continuing with Supabase session only', error);
-        // Always return the candidate - BFF is optional
         return candidate;
       }
     },
@@ -383,10 +383,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     async function initializeAuth() {
       try {
-        // Set a timeout to force loading to false after 15 seconds
-        // Profile fetch: 5s × 2 attempts = 10s max
-        // BFF session: 5s timeout
-        // Total should be ~15s max
         timeoutId = setTimeout(() => {
           if (mounted) {
             console.warn('Auth initialization timed out after 15 seconds');
@@ -400,7 +396,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
         if (mounted) {
           if (session?.user) {
-            // FAST PATH: Use JWT data immediately, fetch profile in background
+            // FAST PATH: Use JWT data immediately
             console.log('AuthProvider: Initializing with JWT data (fast path)');
             const fallback = buildFallbackUser(session.user);
             const hydratedFallback = await synchronizeBffSession(fallback);
@@ -408,7 +404,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             clearTimeout(timeoutId);
             setIsLoading(false);
             
-            // Now fetch profile in background to get balance
+            // Fetch profile in background
             console.log('AuthProvider: Fetching profile in background');
             getAppUserFromSession(session)
               .then(async (appUser) => {
@@ -422,18 +418,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 console.warn('AuthProvider: Background profile fetch failed, keeping JWT data', profileError);
               });
           } else {
-            // No session - user is signed out
             setUser(null);
             clearTimeout(timeoutId);
+            setIsLoading(false);
           }
         }
       } catch (e) {
         console.error('AuthProvider: Error initializing auth', e);
-        setUser(null);
+        if (mounted) {
+          setUser(null);
+          setIsLoading(false);
+        }
       } finally {
         if (mounted) {
           clearTimeout(timeoutId);
-          setIsLoading(false);
         }
       }
     }
@@ -491,8 +489,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       let session: Session | null = data.session ?? null;
 
       try {
-        // Ensure the user's profile can be fetched right after sign-in so any
-        // profile-related issues surface immediately instead of silently failing.
         session = session ?? (await supabase.auth.getSession()).data.session;
 
         if (!session) {
@@ -542,23 +538,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = useCallback(async () => {
     try {
-      // Try to destroy BFF session, but don't block sign out if it fails
       try {
         await destroyBffSession();
       } catch (error: any) {
         console.warn('AuthProvider: Failed to terminate BFF session during sign out', error);
       }
 
-      // Always sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error signing out:', error.message);
       }
 
-      // Always clear user state regardless of errors
       setUser(null);
       
-      // Clear any stale data from localStorage
       try {
         const keys = Object.keys(localStorage);
         keys.forEach(key => {
@@ -573,7 +565,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.log('Sign out completed successfully');
     } catch (error: any) {
       console.error('Unexpected error during sign out', error);
-      // Force sign out even if there are errors
       setUser(null);
     }
   }, []);
