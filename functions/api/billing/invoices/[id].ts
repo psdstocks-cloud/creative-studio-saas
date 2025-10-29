@@ -8,7 +8,7 @@ import {
 } from '../_shared';
 import type { BillingEnv } from '../_shared';
 
-const buildHtmlReceipt = (invoice: ReturnType<typeof mapInvoice>) => {
+export const buildHtmlReceipt = (invoice: ReturnType<typeof mapInvoice>) => {
   const formatter = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: invoice.currency || 'usd',
