@@ -399,33 +399,32 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         } = await supabase.auth.getSession();
 
         if (mounted) {
-          try {
-            const appUser = await getAppUserFromSession(session);
-            const hydratedUser = await synchronizeBffSession(appUser);
-            setUser(hydratedUser);
+          if (session?.user) {
+            // FAST PATH: Use JWT data immediately, fetch profile in background
+            console.log('AuthProvider: Initializing with JWT data (fast path)');
+            const fallback = buildFallbackUser(session.user);
+            const hydratedFallback = await synchronizeBffSession(fallback);
+            setUser(hydratedFallback);
             clearTimeout(timeoutId);
-          } catch (profileError) {
-            const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
-            console.error('Failed to load user profile:', profileError);
-
-            if (session?.user) {
-              console.warn(
-                'AuthProvider: Using fallback profile during initialization due to fetch failure',
-                {
-                  failureType,
-                  userId: session.user.id,
+            setIsLoading(false);
+            
+            // Now fetch profile in background to get balance
+            console.log('AuthProvider: Fetching profile in background');
+            getAppUserFromSession(session)
+              .then(async (appUser) => {
+                if (mounted && appUser) {
+                  const hydratedUser = await synchronizeBffSession(appUser);
+                  setUser(hydratedUser);
+                  console.log('AuthProvider: Profile updated with balance');
                 }
-              );
-              const fallback = buildFallbackUser(session.user);
-              const hydratedFallback = await synchronizeBffSession(fallback);
-              setUser(hydratedFallback);
-            } else if (failureType !== 'timeout' && failureType !== 'permission') {
-              console.warn('AuthProvider: Signing out due to unrecoverable profile fetch error');
-              await supabase.auth.signOut();
-              setUser(null);
-            } else {
-              setUser(null);
-            }
+              })
+              .catch((profileError) => {
+                console.warn('AuthProvider: Background profile fetch failed, keeping JWT data', profileError);
+              });
+          } else {
+            // No session - user is signed out
+            setUser(null);
+            clearTimeout(timeoutId);
           }
         }
       } catch (e) {
