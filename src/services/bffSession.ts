@@ -12,14 +12,14 @@ export interface BffSessionResponse {
 }
 
 export const fetchBffSession = async (): Promise<BffSessionResponse> => {
-  return apiFetch('/auth/session', {
+  return apiFetch('/api/auth/session', {
     method: 'GET',
     auth: true,
   });
 };
 
 export const destroyBffSession = async (): Promise<void> => {
-  await apiFetch('/auth/session', {
+  await apiFetch('/api/auth/session', {
     method: 'DELETE',
     auth: true,
   });
