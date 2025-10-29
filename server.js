@@ -15,6 +15,28 @@ const port = process.env.PORT || 3000;
 app.disable('x-powered-by');
 
 // ---------------------------------------------------------------------------
+// CORS configuration for frontend
+// ---------------------------------------------------------------------------
+
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : ['https://creative-studio-saas.pages.dev', 'http://localhost:5173'];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// ---------------------------------------------------------------------------
 // Configuration helpers
 // ---------------------------------------------------------------------------
 
