@@ -1362,7 +1362,8 @@ app.use((err, req, res, _next) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-  console.log(`Serving static files from: ${buildPath}`);
-  console.log(`Audit log located at: ${AUDIT_LOG_PATH}`);
+  console.log(`✅ BFF Server is running on http://localhost:${port}`);
+  console.log(`🔒 Environment: ${NODE_ENV}`);
+  console.log(`📡 CORS allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
+  console.log(`📝 Audit log: ${AUDIT_LOG_PATH}`);
 });
