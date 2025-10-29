@@ -154,6 +154,14 @@ export const EnvelopeIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const TagIcon = ({ className }: IconProps) => (
+  <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M11 3h5a2 2 0 0 1 2 2v5l-9 9l-6 -6z" />
+    <path d="M9 7v.01" />
+  </svg>
+);
+
 export const LockClosedIcon = ({ className }: IconProps) => (
   <svg {...iconProps} className={className || iconProps.className} viewBox="0 0 24 24">
     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>

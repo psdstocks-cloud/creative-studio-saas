@@ -4,6 +4,7 @@ export const translations = {
     creativeSaaS: "CreativeSaaS",
     points: "Points",
     pricing: "Pricing",
+    billing: "Billing",
     // Sidebar
     home: "Home",
     stockFullSize: "Stock Full-Size",
@@ -108,6 +109,7 @@ export const translations = {
     creativeSaaS: "كرييتف ساس",
     points: "نقاط",
     pricing: "الأسعار",
+    billing: "الفوترة",
     // Sidebar
     home: "الرئيسية",
     stockFullSize: "صور ستوك بالحجم الكامل",
