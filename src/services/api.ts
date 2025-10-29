@@ -1,7 +1,44 @@
 import axios, { AxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { supabase } from './supabaseClient';
 
-const API_BASE_URL = '/api';
+const API_BASE_PATH = '/api';
+const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
+
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+
+const getApiBaseUrl = () => {
+  const envBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envBaseUrl) {
+    return trimTrailingSlash(envBaseUrl);
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${trimTrailingSlash(window.location.origin)}${API_BASE_PATH}`;
+  }
+
+  return API_BASE_PATH;
+};
+
+const resolveEndpoint = (endpoint: string) => {
+  if (ABSOLUTE_URL_REGEX.test(endpoint)) {
+    return endpoint;
+  }
+
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const baseApiUrl = getApiBaseUrl();
+
+  if (baseApiUrl === API_BASE_PATH) {
+    return normalizedEndpoint.startsWith(API_BASE_PATH)
+      ? normalizedEndpoint
+      : `${API_BASE_PATH}${normalizedEndpoint}`;
+  }
+
+  const path = normalizedEndpoint.startsWith(API_BASE_PATH)
+    ? normalizedEndpoint.slice(API_BASE_PATH.length) || '/'
+    : normalizedEndpoint;
+
+  return `${baseApiUrl}${path}`;
+};
 const DEFAULT_TIMEOUT = 30000;
 
 export interface ApiFetchOptions extends AxiosRequestConfig {
@@ -19,7 +56,6 @@ const createRequestId = () =>
   `rq_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 8)}`;
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
   withCredentials: true,
   timeout: DEFAULT_TIMEOUT,
 });
@@ -90,7 +126,7 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
   } = options;
 
   const config: AxiosRequestConfig = {
-    url: endpoint,
+    url: resolveEndpoint(endpoint),
     method,
     timeout,
     ...rest,
