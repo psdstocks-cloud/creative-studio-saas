@@ -63,6 +63,7 @@ export interface User {
   id: string; // From Supabase Auth
   email: string;
   balance: number; // From our 'profiles' table
+  roles: string[];
 }
 
 export interface BillingPlan {
