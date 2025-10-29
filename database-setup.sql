@@ -334,15 +334,54 @@ CREATE POLICY "Users view own subscriptions"
   ON public.subscriptions FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users create subscriptions" ON public.subscriptions;
+CREATE POLICY "Users create subscriptions"
+  ON public.subscriptions FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users update subscriptions" ON public.subscriptions;
+CREATE POLICY "Users update subscriptions"
+  ON public.subscriptions FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
 DROP POLICY IF EXISTS "Users view own invoices" ON public.invoices;
 CREATE POLICY "Users view own invoices"
   ON public.invoices FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users create invoices" ON public.invoices;
+CREATE POLICY "Users create invoices"
+  ON public.invoices FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users update invoices" ON public.invoices;
+CREATE POLICY "Users update invoices"
+  ON public.invoices FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
 DROP POLICY IF EXISTS "Users view own invoice items" ON public.invoice_items;
 CREATE POLICY "Users view own invoice items"
   ON public.invoice_items FOR SELECT
   USING (
+    EXISTS (
+      SELECT 1
+      FROM public.invoices inv
+      WHERE inv.id = invoice_id
+        AND inv.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Users create invoice items" ON public.invoice_items;
+CREATE POLICY "Users create invoice items"
+  ON public.invoice_items FOR INSERT
+  TO authenticated
+  WITH CHECK (
     EXISTS (
       SELECT 1
       FROM public.invoices inv
