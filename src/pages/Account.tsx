@@ -51,6 +51,7 @@ const AccountPage: React.FC = () => {
   const { t } = useLanguage();
   const { user, updateUserBalance, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  // Note: API call is for optional sync only, AuthContext is primary source
   const { data: account, status, error } = useAccountQuery(Boolean(user?.id));
 
   const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
@@ -73,22 +74,24 @@ const AccountPage: React.FC = () => {
     status === 'error' ? (error instanceof Error ? error.message : t('balanceRefreshError')) : null;
 
   useEffect(() => {
-    if (account) {
+    if (user) {
       setLastFetchedAt(new Date().toISOString());
     }
-  }, [account]);
+  }, [user]);
 
+  // Use AuthContext user data as primary source (correct balance and info)
   const balance = useMemo(() => {
-    if (typeof account?.balance === 'number') {
-      return account.balance;
-    }
-
     if (typeof user?.balance === 'number') {
       return user.balance;
     }
 
+    // Fallback to API data if user data not available
+    if (typeof account?.balance === 'number') {
+      return account.balance;
+    }
+
     return 0;
-  }, [account, user]);
+  }, [user, account]);
 
   const handleRefresh = useCallback(async () => {
     if (!user?.id) {
@@ -200,7 +203,8 @@ const AccountPage: React.FC = () => {
     [amount, note, persistBalance, receiver, t]
   );
 
-  const isInitialLoading = (status === 'loading' || status === 'idle') && !account;
+  // Don't block UI on API call - user data from AuthContext is sufficient
+  const isInitialLoading = !user;
 
   if (isInitialLoading) {
     return (
@@ -217,9 +221,9 @@ const AccountPage: React.FC = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-white">{t('accountOverviewTitle')}</h1>
-              <p className="mt-1 text-sm text-slate-400">{account?.email || user?.email || '—'}</p>
-              {account?.username && (
-                <p className="mt-1 text-sm text-slate-500">@{account.username}</p>
+              <p className="mt-1 text-sm text-slate-400">{user?.email || account?.email || '—'}</p>
+              {(user?.username || account?.username) && (
+                <p className="mt-1 text-sm text-slate-500">@{user?.username || account?.username}</p>
               )}
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600/20 text-blue-400">
@@ -230,12 +234,12 @@ const AccountPage: React.FC = () => {
           <dl className="mt-6 space-y-3 text-sm text-slate-300">
             <div className="flex items-center justify-between">
               <dt className="text-slate-400">{t('accountIdLabel')}</dt>
-              <dd className="font-medium text-white">{account?.id || user?.id || '—'}</dd>
+              <dd className="font-medium text-white">{user?.id || account?.id || '—'}</dd>
             </div>
-            {account?.plan && (
+            {(user?.plan || account?.plan) && (
               <div className="flex items-center justify-between">
                 <dt className="text-slate-400">{t('pricing')}</dt>
-                <dd className="font-medium text-white">{account.plan}</dd>
+                <dd className="font-medium text-white">{user?.plan || account?.plan}</dd>
               </div>
             )}
             {account?.lastLoginAt && (

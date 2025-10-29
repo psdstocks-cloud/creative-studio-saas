@@ -1,6 +1,16 @@
 import { apiFetch } from './api';
 import type { AccountOverview, SendPointsResult } from '../types';
 
+/**
+ * Account Service
+ * 
+ * IMPORTANT: The /me endpoint should be used for optional sync/refresh only.
+ * The primary source of user data should be AuthContext (user object from Supabase auth).
+ * 
+ * The /me API endpoint may return incorrect or stale data. Always prioritize
+ * AuthContext user data for displaying user information and balance.
+ */
+
 export interface SendPointsPayload {
   receiver: string;
   amount: number;
@@ -41,6 +51,12 @@ const firstNumber = (...values: unknown[]): number | null => {
   return null;
 };
 
+/**
+ * Fetches account overview from the backend API.
+ * 
+ * NOTE: This should only be used for optional refresh/sync.
+ * Primary user data should come from AuthContext.
+ */
 export const fetchAccountOverview = async (): Promise<AccountOverview> => {
   const data = await apiFetch('/me', { method: 'GET', auth: true });
 
