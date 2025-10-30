@@ -28,6 +28,12 @@ const AdminUsers = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Define handler before using it in columns
+  const handleOpenAdjustBalance = (user: AdminUserSummary) => {
+    setSelectedUser(user);
+    setAdjustBalanceDialogOpen(true);
+  };
+
   const columns = useMemo<ColumnDef<AdminUserSummary>[]>(
     () => [
       {
@@ -129,11 +135,6 @@ const AdminUsers = () => {
     },
     onSortingChange: setSorting,
   });
-
-  const handleOpenAdjustBalance = (user: AdminUserSummary) => {
-    setSelectedUser(user);
-    setAdjustBalanceDialogOpen(true);
-  };
 
   const handleAdjustBalanceSubmit = async (amount: number, reason: string) => {
     if (!selectedUser) return;
