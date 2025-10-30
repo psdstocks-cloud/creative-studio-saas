@@ -88,6 +88,18 @@ export const onRequest = async ({
 }) => {
   const url = new URL(request.url);
 
+  // Debug logging - Log all incoming headers
+  console.log('🔍 Session Endpoint Debug:');
+  console.log('  - Method:', request.method);
+  console.log('  - URL:', url.toString());
+
+  const authHeader = request.headers.get('authorization');
+  const cookieHeader = request.headers.get('cookie');
+
+  console.log('  - Auth Header:', authHeader ? `${authHeader.substring(0, 40)}...` : 'MISSING');
+  console.log('  - Cookie Header:', cookieHeader ? `${cookieHeader.substring(0, 80)}...` : 'MISSING');
+  console.log('  - All Headers:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
+
   if (request.method === 'OPTIONS') {
     const headers = buildCorsHeaders(url.origin);
     headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS');
@@ -103,8 +115,10 @@ export const onRequest = async ({
   try {
     const accessToken = extractAccessToken(request);
 
+    console.log('  - Extracted Token:', accessToken ? `${accessToken.substring(0, 30)}...` : 'NULL');
+
     if (!accessToken) {
-      // No access token found - user is not authenticated
+      console.log('  ❌ No access token found - user is not authenticated');
       return buildJsonResponse(url.origin, 200, { user: null });
     }
 
