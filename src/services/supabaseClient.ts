@@ -23,6 +23,11 @@ export const supabase = (() => {
         storageKey: 'creative-studio-auth',
         autoRefreshToken: true,
         persistSession: true,
+        detectSessionInUrl: true,
+        // Use PKCE flow for better security and cookie support
+        flowType: 'pkce',
+        // Use localStorage for session storage
+        storage: window.localStorage,
       },
     });
   }
