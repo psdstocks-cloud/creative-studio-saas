@@ -51,6 +51,7 @@ const PROFILE_FETCH_RETRY_DELAY_MS = 500;
 const MAX_PROFILE_FETCH_ATTEMPTS = 2;
 const DEFAULT_ROLE = 'user';
 const EMPTY_ROLES: string[] = [];
+const SUPABASE_STORAGE_KEYS = ['creative-studio-auth', 'supabase.auth.token'];
 
 const normalizeRoleInput = (input: unknown): string[] => {
   if (!input) {
@@ -171,6 +172,51 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const userRoles = user?.roles ?? EMPTY_ROLES;
+
+  const getStoredSession = useCallback((): Session | null => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return null;
+    }
+
+    for (const key of SUPABASE_STORAGE_KEYS) {
+      try {
+        const rawValue = window.localStorage.getItem(key);
+        if (!rawValue) {
+          continue;
+        }
+
+        const parsedValue: unknown = JSON.parse(rawValue);
+        const candidateSessions: Array<unknown> = [];
+
+        if (parsedValue && typeof parsedValue === 'object') {
+          const recordValue = parsedValue as Record<string, unknown>;
+
+          if ('currentSession' in recordValue) {
+            candidateSessions.push((recordValue as { currentSession?: unknown }).currentSession);
+          }
+
+          if ('session' in recordValue) {
+            candidateSessions.push((recordValue as { session?: unknown }).session);
+          }
+
+          candidateSessions.push(recordValue);
+        }
+
+        for (const candidate of candidateSessions) {
+          if (candidate && typeof candidate === 'object') {
+            const potentialSession = candidate as Partial<Session>;
+            if (potentialSession.user && typeof potentialSession.user === 'object') {
+              return potentialSession as Session;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('AuthProvider: Failed to parse stored Supabase session', { key, error });
+      }
+    }
+
+    return null;
+  }, []);
 
   const getAppUserFromSession = useCallback(
     async (session: Session | null): Promise<User | null> => {
@@ -379,64 +425,121 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     let mounted = true;
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const handleInitializationTimeout = () => {
+      if (!mounted) {
+        return;
+      }
+
+      console.warn('Auth initialization timed out after 15 seconds');
+
+      const storedSession = getStoredSession();
+      if (storedSession?.user) {
+        const fallbackUser = buildFallbackUser(storedSession.user);
+
+        void (async () => {
+          try {
+            const hydratedFallback = await synchronizeBffSession(fallbackUser);
+            if (mounted) {
+              setUser(hydratedFallback);
+            }
+          } catch (error) {
+            console.warn('AuthProvider: Failed to hydrate stored session after timeout', error);
+            if (mounted) {
+              setUser(fallbackUser);
+            }
+          } finally {
+            if (mounted) {
+              setIsLoading(false);
+            }
+          }
+        })();
+      } else {
+        setIsLoading(false);
+      }
+    };
 
     async function initializeAuth() {
       try {
-        timeoutId = setTimeout(() => {
-          if (mounted) {
-            console.warn('Auth initialization timed out after 15 seconds');
-            setIsLoading(false);
-          }
-        }, 15000);
+        timeoutId = setTimeout(handleInitializationTimeout, 15000);
 
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (mounted) {
-          if (session?.user) {
-            // FAST PATH: Use JWT data immediately
-            console.log('AuthProvider: Initializing with JWT data (fast path)');
-            const fallback = buildFallbackUser(session.user);
-            const hydratedFallback = await synchronizeBffSession(fallback);
+        if (!mounted) {
+          return;
+        }
+
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
+        }
+
+        if (session?.user) {
+          // FAST PATH: Use JWT data immediately
+          console.log('AuthProvider: Initializing with JWT data (fast path)');
+          const fallback = buildFallbackUser(session.user);
+          const hydratedFallback = await synchronizeBffSession(fallback);
+          if (mounted) {
             setUser(hydratedFallback);
-            clearTimeout(timeoutId);
-            setIsLoading(false);
-            
-            // Fetch profile in background
-            console.log('AuthProvider: Fetching profile in background');
-            getAppUserFromSession(session)
-              .then(async (appUser) => {
-                if (mounted && appUser) {
-                  const hydratedUser = await synchronizeBffSession(appUser);
-                  setUser(hydratedUser);
-                  console.log('AuthProvider: Profile updated with balance');
-                }
-              })
-              .catch((profileError) => {
-                console.warn('AuthProvider: Background profile fetch failed, keeping JWT data', profileError);
-              });
-          } else {
-            setUser(null);
-            clearTimeout(timeoutId);
             setIsLoading(false);
           }
-        }
-      } catch (e) {
-        console.error('AuthProvider: Error initializing auth', e);
-        if (mounted) {
+
+          // Fetch profile in background
+          console.log('AuthProvider: Fetching profile in background');
+          getAppUserFromSession(session)
+            .then(async (appUser) => {
+              if (mounted && appUser) {
+                const hydratedUser = await synchronizeBffSession(appUser);
+                setUser(hydratedUser);
+                console.log('AuthProvider: Profile updated with balance');
+              }
+            })
+            .catch((profileError) => {
+              console.warn('AuthProvider: Background profile fetch failed, keeping JWT data', profileError);
+            });
+        } else {
           setUser(null);
           setIsLoading(false);
         }
-      } finally {
-        if (mounted) {
+      } catch (e) {
+        console.error('AuthProvider: Error initializing auth', e);
+        if (timeoutId) {
           clearTimeout(timeoutId);
+          timeoutId = undefined;
+        }
+
+        if (!mounted) {
+          return;
+        }
+
+        const storedSession = getStoredSession();
+        if (storedSession?.user) {
+          const fallbackUser = buildFallbackUser(storedSession.user);
+          try {
+            const hydratedFallback = await synchronizeBffSession(fallbackUser);
+            if (mounted) {
+              setUser(hydratedFallback);
+            }
+          } catch (error) {
+            console.warn('AuthProvider: Failed to hydrate stored session after initialization error', error);
+            if (mounted) {
+              setUser(fallbackUser);
+            }
+          }
+        } else if (mounted) {
+          setUser(null);
+        }
+
+        if (mounted) {
+          setIsLoading(false);
         }
       }
     }
 
-    initializeAuth();
+    void initializeAuth();
 
     const {
       data: { subscription },
@@ -473,10 +576,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     return () => {
       mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       subscription.unsubscribe();
     };
-  }, [getAppUserFromSession, synchronizeBffSession]);
+  }, [getAppUserFromSession, synchronizeBffSession, getStoredSession]);
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<void> => {
