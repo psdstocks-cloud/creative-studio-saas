@@ -1358,7 +1358,7 @@ adminRouter.get(
   async (req, res) => {
     try {
       const { key, limit = '50' } = req.query;
-      const parsedLimit = Math.min(parseInt(limit as string, 10) || 50, 200);
+      const parsedLimit = Math.min(parseInt(String(limit), 10) || 50, 200);
 
       let query = supabaseAdmin
         .from('stock_source_audit')
