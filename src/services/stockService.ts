@@ -128,8 +128,31 @@ export const generateDownloadLink = async (taskId: string): Promise<StockDownloa
 
 /**
  * Retrieves the list of supported stock media websites and their costs.
+ * NOW FETCHES FROM DATABASE INSTEAD OF HARDCODED LIST
  */
 export const getSupportedSites = async (): Promise<SupportedSite[]> => {
+  try {
+    // Fetch from database via API
+    const response = await apiFetch('/stock-sources', { auth: false });
+    
+    if (response && Array.isArray(response.sites)) {
+      return response.sites.filter((site: SupportedSite) => site.active !== false);
+    }
+
+    // Fallback to static list if API fails
+    console.warn('Failed to fetch dynamic stock sources, using fallback');
+    return getFallbackSites();
+  } catch (error) {
+    console.error('Error fetching supported sites:', error);
+    return getFallbackSites();
+  }
+};
+
+/**
+ * Fallback static list (same as original hardcoded)
+ * Used if database is unavailable
+ */
+const getFallbackSites = (): SupportedSite[] => {
   const sites = [
     { key: 'adobestock', name: 'adobestock', cost: 0.4, icon: 'adobestock.png' },
     { key: 'pixelbuddha', name: 'pixelbuddha', cost: 0.6, icon: 'pixelbuddha.png' },
@@ -183,10 +206,9 @@ export const getSupportedSites = async (): Promise<SupportedSite[]> => {
     { key: 'footagecrate', name: 'footagecrate', cost: 1, icon: 'footagecrate.png' },
   ];
 
-  return Promise.resolve(
-    sites.map((site) => ({
-      ...site,
-      iconUrl: `https://nehtw.com/assets/icons/${site.icon}`,
-    }))
-  );
+  return sites.map((site) => ({
+    ...site,
+    iconUrl: `https://nehtw.com/assets/icons/${site.icon}`,
+    active: true,
+  }));
 };
