@@ -1,5 +1,5 @@
-import { errorResponse, handleOptions, jsonResponse } from '../../../../_lib/http';
-import { requireUser, type SupabaseEnv } from '../../../../_lib/supabase';
+import { errorResponse, handleOptions, jsonResponse } from '../../../_lib/http';
+import { requireUser, type SupabaseEnv } from '../../../_lib/supabase';
 
 interface EnvBindings extends SupabaseEnv {}
 
