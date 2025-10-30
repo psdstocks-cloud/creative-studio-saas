@@ -9,7 +9,48 @@ import { LayoutProvider } from './stores/layoutStore';
 import { Toaster } from './components/ui/toaster';
 import ErrorBoundary from './components/ErrorBoundary';
 import { config } from './config';
+import { supabase } from './services/supabaseClient';
 import './input.css';
+
+// Expose supabase to window for debugging
+if (typeof window !== 'undefined') {
+  (window as any).supabase = supabase;
+  console.log('✅ Supabase client exposed to window.supabase for debugging');
+
+  // Add helper function to check auth state
+  (window as any).checkAuth = async () => {
+    console.log('🔍 Checking authentication state...');
+
+    // Check localStorage
+    const authKeys = Object.keys(localStorage).filter(key =>
+      key.includes('creative-studio-auth') || key.includes('supabase') || key.includes('sb-')
+    );
+    console.log('📦 Auth keys in localStorage:', authKeys);
+
+    // Check Supabase session
+    const { data, error } = await supabase.auth.getSession();
+    console.log('🔐 Supabase session:', {
+      hasSession: !!data.session,
+      hasAccessToken: !!data.session?.access_token,
+      tokenLength: data.session?.access_token?.length,
+      userId: data.session?.user?.id,
+      userEmail: data.session?.user?.email,
+      error: error
+    });
+
+    // Try session endpoint
+    try {
+      const response = await fetch('/api/auth/session', { credentials: 'include' });
+      const sessionData = await response.json();
+      console.log('🌐 Backend session endpoint:', sessionData);
+    } catch (err) {
+      console.error('❌ Backend session endpoint error:', err);
+    }
+
+    return data;
+  };
+  console.log('✅ Run window.checkAuth() to debug authentication');
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
