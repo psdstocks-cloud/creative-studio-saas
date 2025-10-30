@@ -1,15 +1,16 @@
 import React, { useMemo, useState } from 'react';
+import type { AdminUserSummary } from '../../types';
 import { useAdminUsers } from '../../hooks/admin/useAdminUsers';
 import { adjustUserBalance } from '../../services/admin/usersService';
 import { useQueryClient } from '../../lib/queryClient';
-import { ArrowPathIcon, ChevronUpIcon, ChevronDownIcon } from '../../components/icons/Icons';
-import { useReactTable, flexRender, type ColumnDef } from '../../lib/reactTable';
+import { useReactTable, flexRender } from '../../lib/reactTable';
+import type { ColumnDef } from '../../lib/reactTable';
 import { AdjustBalanceDialog } from '../../components/admin/AdjustBalanceDialog';
 import { useToast } from '../../hooks/use-toast';
-import type { AdminUserSummary } from '../../types';
 import { TableSkeleton } from '../../components/ui/table-skeleton';
 import { EmptyState } from '../../components/ui/empty-state';
 import { UsersIcon } from 'lucide-react';
+import { ArrowPathIcon, ChevronUpIcon, ChevronDownIcon } from '../../components/icons/Icons';
 
 const AdminUsers = () => {
   const [search, setSearch] = useState('');
