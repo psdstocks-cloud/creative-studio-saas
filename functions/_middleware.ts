@@ -15,7 +15,17 @@ const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
 };
 
-export const onRequest = async ({ next }: { next: () => Promise<Response> }) => {
+export const onRequest = async ({ request, next }: { request: Request; next: () => Promise<Response> }) => {
+  // Log incoming request details for debugging
+  const authHeader = request.headers.get('authorization');
+  const cookieHeader = request.headers.get('cookie');
+  console.log('🚦 Middleware - Incoming Request:', {
+    url: new URL(request.url).pathname,
+    method: request.method,
+    hasAuth: !!authHeader,
+    hasCookie: !!cookieHeader,
+  });
+
   const response = await next();
   const headers = new Headers(response.headers);
 
