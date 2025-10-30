@@ -25,34 +25,61 @@ Follow the step-by-step guide below.
 
 ## Getting Your Access Token
 
-### Method 1: From Browser DevTools
+### Method 1: From Browser Console (EASIEST)
+
+**Open browser console (F12) after logging in and paste:**
+
+```javascript
+// This app uses custom storage key 'creative-studio-auth'
+const authData = localStorage.getItem('creative-studio-auth')
+if (authData) {
+  const parsed = JSON.parse(authData)
+  console.log('✅ Access Token:', parsed.access_token)
+  console.log('Copy this token ↑')
+} else {
+  console.log('❌ Not logged in or session not found')
+}
+```
+
+**Alternative methods if above doesn't work:**
+
+```javascript
+// Method 2: Find all auth-related localStorage keys
+Object.keys(localStorage)
+  .filter(key => key.includes('auth') || key.includes('sb-'))
+  .forEach(key => console.log(key, localStorage.getItem(key)))
+
+// Method 3: Get session from Supabase client directly
+// First import the client, then run:
+const { data: { session } } = await supabase.auth.getSession()
+console.log('Access Token:', session?.access_token)
+```
+
+### Method 2: From Browser DevTools
 
 1. **Login to your app** in a browser
 2. **Open DevTools** (Press F12 or Right-click → Inspect)
 3. **Go to Application tab** (Chrome) or **Storage tab** (Firefox)
-4. **Look in Cookies** under your domain:
-   - Find a cookie named like `sb-*-access-token` or `sb-*-auth-token`
+4. **Look in Local Storage** under your domain:
+   - Find key named `creative-studio-auth`
+   - The value is JSON - look for `access_token` property
+5. **Alternative: Check Cookies**:
+   - Look for cookies like `sb-*-auth-token` or `sb-*-access-token`
    - Copy the value
-5. **Alternative: Check Local Storage**:
-   - Look for key like `supabase.auth.token`
-   - The value will be a JSON object with `access_token` property
 
-### Method 2: From Browser Console
+### Method 3: From Network Tab (MOST RELIABLE)
 
-```javascript
-// Paste this in browser console after logging in
-localStorage.getItem('supabase.auth.token')
-// Look for "access_token" in the JSON response
-```
+1. **Login to your app**
+2. **Open DevTools → Network tab**
+3. **Navigate to any page** that makes API calls (like Orders or Profile)
+4. **Click on any `/api/` request** in the list
+5. **Go to Headers tab**
+6. **Look for Request Headers:**
+   - Find `Authorization: Bearer <token>` header
+   - Copy everything after "Bearer " (that's your token)
+   - OR find `Cookie:` header with `sb-*-auth-token=<token>`
 
-### Method 3: From Network Tab
-
-1. Login to your app
-2. Open DevTools → Network tab
-3. Look at any API request to `/api/`
-4. Check the **Request Headers**
-5. Find the `Authorization: Bearer <token>` header
-6. Copy the token after "Bearer "
+This method is most reliable because it shows exactly what token your app is sending!
 
 ---
 
