@@ -193,7 +193,7 @@ const getFallbackSites = (): SupportedSite[] => {
     { key: 'depositphotos', name: 'depositphotos', cost: 0.6, icon: 'depositphotos.png' },
     { key: 'artlist_sound', name: 'artlist music/sfx', cost: 0.4, icon: 'artlist_sound.png' },
     { key: 'epidemicsound', name: 'epidemicsound', cost: 0.3, icon: 'epidemicsound.png' },
-    { key: 'artgrid_HD', name: 'artgrid_HD', cost: 0.8, icon: 'artgrid_HD.png' },
+    { key: 'artgrid_hd', name: 'artgrid_HD', cost: 0.8, icon: 'artgrid_HD.png' },
     { key: 'motionelements', name: 'motionelements', cost: 0.5, icon: 'motionelements.png' },
     { key: 'deeezy', name: 'deeezy', cost: 0.5, icon: 'deeezy.png' },
     {
