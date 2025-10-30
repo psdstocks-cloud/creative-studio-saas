@@ -659,6 +659,42 @@ app.delete('/api/auth/session', requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Public API endpoints (for authenticated users)
+// ---------------------------------------------------------------------------
+
+// Get active stock sources (public endpoint for all users)
+app.get('/api/stock-sources', async (_req, res) => {
+  try {
+    const { data: sources, error } = await supabaseAdmin
+      .from('stock_sources')
+      .select('*')
+      .eq('active', true)
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Failed to fetch stock sources:', error);
+      res.status(500).json({ message: 'Failed to fetch stock sources from database.' });
+      return;
+    }
+
+    // Format the response to match the expected structure
+    const sites = (sources || []).map(source => ({
+      key: source.key,
+      name: source.name,
+      cost: source.cost,
+      icon: source.icon,
+      iconUrl: source.icon_url,
+      active: source.active
+    }));
+
+    res.json({ sites });
+  } catch (error) {
+    console.error('Failed to load stock sources', error);
+    res.status(500).json({ message: 'Unable to load stock source catalog.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Admin router with RBAC + auditing
 // ---------------------------------------------------------------------------
 
@@ -1155,27 +1191,205 @@ adminRouter.get(
   }
 );
 
+// Get all stock sources from database
 adminRouter.get(
   '/stock-sources',
   audit('admin.stock-sources.list', () => ({ resource: 'stock-sources' })),
   async (_req, res) => {
-    if (!STOCK_API_KEY) {
-      res.status(500).json({ message: 'Server is missing STOCK_API_KEY configuration.' });
-      return;
-    }
-
     try {
-      const targetUrl = `${STOCK_API_BASE_URL}/stocksites`;
-      const upstreamResponse = await fetch(targetUrl, {
-        method: 'GET',
-        headers: { 'X-Api-Key': STOCK_API_KEY },
-      });
+      const { data: sources, error } = await supabaseAdmin
+        .from('stock_sources')
+        .select('*')
+        .order('name', { ascending: true });
 
-      const payload = await upstreamResponse.json().catch(() => null);
-      res.status(upstreamResponse.status).json(payload ?? { sites: [] });
+      if (error) {
+        console.error('Failed to fetch stock sources:', error);
+        res.status(500).json({ message: 'Failed to fetch stock sources from database.' });
+        return;
+      }
+
+      // Format the response to match the expected structure
+      const sites = (sources || []).map(source => ({
+        key: source.key,
+        name: source.name,
+        cost: source.cost,
+        icon: source.icon,
+        iconUrl: source.icon_url,
+        active: source.active
+      }));
+
+      res.json({ sites });
     } catch (error) {
       console.error('Failed to load stock sources', error);
-      res.status(502).json({ message: 'Unable to load stock source catalog.' });
+      res.status(500).json({ message: 'Unable to load stock source catalog.' });
+    }
+  }
+);
+
+// Update stock source cost
+adminRouter.patch(
+  '/stock-sources/:key/cost',
+  audit('admin.stock-sources.update-cost', (req) => ({ 
+    key: req.params.key, 
+    cost: req.body.cost 
+  })),
+  async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { cost } = req.body;
+
+      // Validate cost
+      const MIN_COST = 0.01;
+      const MAX_COST = 1000;
+
+      if (typeof cost !== 'number' || isNaN(cost) || !isFinite(cost)) {
+        res.status(400).json({ message: 'Invalid cost value.' });
+        return;
+      }
+
+      if (cost < MIN_COST || cost > MAX_COST) {
+        res.status(400).json({ 
+          message: `Cost must be between ${MIN_COST} and ${MAX_COST}.` 
+        });
+        return;
+      }
+
+      // Get old value for audit
+      const { data: oldSource } = await supabaseAdmin
+        .from('stock_sources')
+        .select('cost')
+        .eq('key', key)
+        .single();
+
+      // Update the cost
+      const { error: updateError } = await supabaseAdmin
+        .from('stock_sources')
+        .update({ cost, updated_at: new Date().toISOString() })
+        .eq('key', key);
+
+      if (updateError) {
+        console.error('Failed to update stock source cost:', updateError);
+        res.status(500).json({ message: 'Failed to update stock source cost.' });
+        return;
+      }
+
+      // Log to audit table
+      if (oldSource && req.user?.id) {
+        await supabaseAdmin
+          .from('stock_source_audit')
+          .insert({
+            stock_source_key: key,
+            action: 'cost_updated',
+            old_value: oldSource.cost?.toString() || 'null',
+            new_value: cost.toString(),
+            changed_by: req.user.id
+          });
+      }
+
+      res.json({ success: true, message: 'Stock source cost updated successfully.' });
+    } catch (error) {
+      console.error('Failed to update stock source cost:', error);
+      res.status(500).json({ message: 'Unable to update stock source cost.' });
+    }
+  }
+);
+
+// Toggle stock source active status
+adminRouter.patch(
+  '/stock-sources/:key/active',
+  audit('admin.stock-sources.update-active', (req) => ({ 
+    key: req.params.key, 
+    active: req.body.active 
+  })),
+  async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { active } = req.body;
+
+      if (typeof active !== 'boolean') {
+        res.status(400).json({ message: 'Invalid active value.' });
+        return;
+      }
+
+      // Get old value for audit
+      const { data: oldSource } = await supabaseAdmin
+        .from('stock_sources')
+        .select('active')
+        .eq('key', key)
+        .single();
+
+      // Update the active status
+      const { error: updateError } = await supabaseAdmin
+        .from('stock_sources')
+        .update({ active, updated_at: new Date().toISOString() })
+        .eq('key', key);
+
+      if (updateError) {
+        console.error('Failed to update stock source status:', updateError);
+        res.status(500).json({ message: 'Failed to update stock source status.' });
+        return;
+      }
+
+      // Log to audit table
+      if (oldSource && req.user?.id) {
+        await supabaseAdmin
+          .from('stock_source_audit')
+          .insert({
+            stock_source_key: key,
+            action: 'active_toggled',
+            old_value: oldSource.active?.toString() || 'null',
+            new_value: active.toString(),
+            changed_by: req.user.id
+          });
+      }
+
+      res.json({ success: true, message: 'Stock source status updated successfully.' });
+    } catch (error) {
+      console.error('Failed to update stock source status:', error);
+      res.status(500).json({ message: 'Unable to update stock source status.' });
+    }
+  }
+);
+
+// Get stock source audit log
+adminRouter.get(
+  '/stock-sources/audit',
+  audit('admin.stock-sources.audit-log', () => ({ resource: 'stock-source-audit' })),
+  async (req, res) => {
+    try {
+      const { key, limit = '50' } = req.query;
+      const parsedLimit = Math.min(parseInt(limit as string, 10) || 50, 200);
+
+      let query = supabaseAdmin
+        .from('stock_source_audit')
+        .select(`
+          id,
+          stock_source_key,
+          action,
+          old_value,
+          new_value,
+          changed_by,
+          changed_at
+        `)
+        .order('changed_at', { ascending: false })
+        .limit(parsedLimit);
+
+      if (key) {
+        query = query.eq('stock_source_key', key);
+      }
+
+      const { data: logs, error } = await query;
+
+      if (error) {
+        console.error('Failed to fetch audit logs:', error);
+        res.status(500).json({ message: 'Failed to fetch audit logs.' });
+        return;
+      }
+
+      res.json({ logs: logs || [] });
+    } catch (error) {
+      console.error('Failed to load audit logs:', error);
+      res.status(500).json({ message: 'Unable to load audit logs.' });
     }
   }
 );
