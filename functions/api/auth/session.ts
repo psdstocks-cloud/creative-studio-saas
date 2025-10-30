@@ -149,6 +149,7 @@ export const onRequest = async ({
 
     if (!response.ok) {
       // Invalid or expired token
+      console.log('  ❌ Token validation failed with Supabase, status:', response.status);
       return buildJsonResponse(url.origin, 200, { user: null });
     }
 
@@ -156,11 +157,18 @@ export const onRequest = async ({
     const user = userData as User;
 
     if (!user || !user.id) {
+      console.log('  ❌ No user data returned from Supabase');
       return buildJsonResponse(url.origin, 200, { user: null });
     }
 
     // Extract roles from user metadata
     const roles = extractRolesFromUser(user);
+
+    console.log('  ✅ User authenticated successfully:', {
+      userId: user.id,
+      email: user.email,
+      roles
+    });
 
     // Return user session in the format expected by the frontend
     return buildJsonResponse(url.origin, 200, {
