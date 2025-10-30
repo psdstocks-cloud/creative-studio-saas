@@ -55,7 +55,9 @@ export interface SupportedSite {
   key: string;
   name: string;
   cost: number | string | null;
+  icon?: string;
   iconUrl?: string;
+  active?: boolean;
 }
 
 export interface User {

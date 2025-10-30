@@ -10,18 +10,18 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   const { site, id } = parseStockUrl(url);
   logger.debug('Parsing stock URL', { url, site, id });
 
-  const responseData = await apiFetch(`/stockinfo/${site}/${id}`);
+  const responseData = await apiFetch(`/stockinfo/${site}/${id}`) as any;
   logger.apiResponse(`/stockinfo/${site}/${id}`, responseData);
 
   // Check if response explicitly indicates failure
-  if (responseData.success === false) {
-    const errorMessage = responseData.message || 'Could not retrieve file details.';
+  if (responseData?.success === false) {
+    const errorMessage = responseData?.message || 'Could not retrieve file details.';
     logger.error('Stock API returned error', new Error(errorMessage), { url, site, id });
     throw new Error(errorMessage);
   }
 
   // Check if data is an empty array (file unavailable)
-  if (Array.isArray(responseData.data)) {
+  if (Array.isArray(responseData?.data)) {
     logger.debug('Stock API returned array', { length: responseData.data.length });
 
     if (responseData.data.length === 0) {
@@ -59,7 +59,7 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   }
 
   // Handle cases where data is nested inside a 'data' property (as an object)
-  const data = responseData.data || responseData;
+  const data = responseData?.data || responseData;
 
   // Final validation - ensure data is an object with required fields
   if (typeof data !== 'object' || data === null) {
@@ -109,14 +109,14 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
  * Places an order to download a stock media file.
  */
 export const orderStockFile = async (site: string, id: string): Promise<StockOrder> => {
-  return apiFetch(`/stockorder/${site}/${id}`);
+  return apiFetch(`/stockorder/${site}/${id}`) as Promise<StockOrder>;
 };
 
 /**
  * Checks the status of a previously placed order.
  */
 export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
-  return apiFetch(`/order/${taskId}/status`);
+  return apiFetch(`/order/${taskId}/status`) as Promise<StockOrder>;
 };
 
 /**
@@ -133,7 +133,7 @@ export const generateDownloadLink = async (taskId: string): Promise<StockDownloa
 export const getSupportedSites = async (): Promise<SupportedSite[]> => {
   try {
     // Fetch from database via API
-    const response = await apiFetch('/stock-sources', { auth: false });
+    const response = await apiFetch('/stock-sources', { auth: false }) as any;
     
     if (response && Array.isArray(response.sites)) {
       return response.sites.filter((site: SupportedSite) => site.active !== false);
