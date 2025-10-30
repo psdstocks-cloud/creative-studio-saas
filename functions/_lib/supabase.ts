@@ -1,5 +1,3 @@
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
-
 export interface SupabaseEnv {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
@@ -13,7 +11,63 @@ export interface SupabaseEnv {
   NEXT_PUBLIC_SUPABASE_ANON_KEY?: string;
 }
 
-export type ServiceSupabaseClient = SupabaseClient<any, any, any>;
+export interface User {
+  id: string;
+  email?: string;
+  [key: string]: any;
+}
+
+// Lightweight Supabase client for Cloudflare Workers/Pages Functions
+export interface SupabaseResponse<T> {
+  data: T | null;
+  error: SupabaseError | null;
+}
+
+export interface SupabaseError {
+  message: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+}
+
+interface QueryBuilder<T> {
+  select(columns?: string): QueryBuilder<T>;
+  insert(values: any[]): QueryBuilder<T>;
+  update(values: any): QueryBuilder<T>;
+  delete(): QueryBuilder<T>;
+  eq(column: string, value: any): QueryBuilder<T>;
+  neq(column: string, value: any): QueryBuilder<T>;
+  gt(column: string, value: any): QueryBuilder<T>;
+  gte(column: string, value: any): QueryBuilder<T>;
+  lt(column: string, value: any): QueryBuilder<T>;
+  lte(column: string, value: any): QueryBuilder<T>;
+  in(column: string, values: any[]): QueryBuilder<T>;
+  is(column: string, value: any): QueryBuilder<T>;
+  like(column: string, pattern: string): QueryBuilder<T>;
+  ilike(column: string, pattern: string): QueryBuilder<T>;
+  order(column: string, options?: { ascending?: boolean }): QueryBuilder<T>;
+  limit(count: number): QueryBuilder<T>;
+  single<S = T>(): Promise<SupabaseResponse<S>>;
+  maybeSingle<S = T>(): Promise<SupabaseResponse<S>>;
+  then<S = T>(
+    onfulfilled?: (value: SupabaseResponse<T>) => S | Promise<S>,
+    onrejected?: (reason: any) => any
+  ): Promise<S>;
+}
+
+interface AuthAdmin {
+  getUserById(userId: string): Promise<SupabaseResponse<{ user: User }>>;
+}
+
+interface Auth {
+  admin: AuthAdmin;
+}
+
+export interface ServiceSupabaseClient {
+  from<T = any>(table: string): QueryBuilder<T>;
+  rpc<T = any>(fn: string, params?: Record<string, any>): Promise<SupabaseResponse<T>>;
+  auth: Auth;
+}
 
 interface SupabaseConfig {
   url: string;
@@ -96,6 +150,358 @@ const SUPABASE_ACCESS_COOKIE_PATTERNS = [
   /^sb-[^-]+-auth-token$/,
 ];
 
+// Create a lightweight query builder for Cloudflare Workers
+class SupabaseQueryBuilder<T> implements QueryBuilder<T> {
+  private table: string;
+  private url: string;
+  private apiKey: string;
+  private accessToken?: string;
+  private method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET';
+  private selectColumns?: string;
+  private filters: string[] = [];
+  private orderBy?: string;
+  private limitCount?: number;
+  private body?: any;
+  private preferHeader?: string;
+
+  constructor(table: string, url: string, apiKey: string, accessToken?: string) {
+    this.table = table;
+    this.url = url;
+    this.apiKey = apiKey;
+    this.accessToken = accessToken;
+  }
+
+  select(columns: string = '*'): QueryBuilder<T> {
+    this.selectColumns = columns;
+    this.method = 'GET';
+    return this;
+  }
+
+  insert(values: any[]): QueryBuilder<T> {
+    this.method = 'POST';
+    this.body = values;
+    this.preferHeader = 'return=representation';
+    return this;
+  }
+
+  update(values: any): QueryBuilder<T> {
+    this.method = 'PATCH';
+    this.body = values;
+    this.preferHeader = 'return=representation';
+    return this;
+  }
+
+  delete(): QueryBuilder<T> {
+    this.method = 'DELETE';
+    this.preferHeader = 'return=representation';
+    return this;
+  }
+
+  eq(column: string, value: any): QueryBuilder<T> {
+    this.filters.push(`${column}=eq.${encodeURIComponent(String(value))}`);
+    return this;
+  }
+
+  neq(column: string, value: any): QueryBuilder<T> {
+    this.filters.push(`${column}=neq.${encodeURIComponent(String(value))}`);
+    return this;
+  }
+
+  gt(column: string, value: any): QueryBuilder<T> {
+    this.filters.push(`${column}=gt.${encodeURIComponent(String(value))}`);
+    return this;
+  }
+
+  gte(column: string, value: any): QueryBuilder<T> {
+    this.filters.push(`${column}=gte.${encodeURIComponent(String(value))}`);
+    return this;
+  }
+
+  lt(column: string, value: any): QueryBuilder<T> {
+    this.filters.push(`${column}=lt.${encodeURIComponent(String(value))}`);
+    return this;
+  }
+
+  lte(column: string, value: any): QueryBuilder<T> {
+    this.filters.push(`${column}=lte.${encodeURIComponent(String(value))}`);
+    return this;
+  }
+
+  in(column: string, values: any[]): QueryBuilder<T> {
+    const encoded = values.map((v) => encodeURIComponent(String(v))).join(',');
+    this.filters.push(`${column}=in.(${encoded})`);
+    return this;
+  }
+
+  is(column: string, value: any): QueryBuilder<T> {
+    this.filters.push(`${column}=is.${value === null ? 'null' : String(value)}`);
+    return this;
+  }
+
+  like(column: string, pattern: string): QueryBuilder<T> {
+    this.filters.push(`${column}=like.${encodeURIComponent(pattern)}`);
+    return this;
+  }
+
+  ilike(column: string, pattern: string): QueryBuilder<T> {
+    this.filters.push(`${column}=ilike.${encodeURIComponent(pattern)}`);
+    return this;
+  }
+
+  order(column: string, options?: { ascending?: boolean }): QueryBuilder<T> {
+    const direction = options?.ascending === false ? '.desc' : '.asc';
+    this.orderBy = `${column}${direction}`;
+    return this;
+  }
+
+  limit(count: number): QueryBuilder<T> {
+    this.limitCount = count;
+    return this;
+  }
+
+  private buildUrl(): string {
+    const baseUrl = `${this.url}/rest/v1/${this.table}`;
+    const params = new URLSearchParams();
+
+    if (this.selectColumns) {
+      params.set('select', this.selectColumns);
+    }
+
+    if (this.orderBy) {
+      params.set('order', this.orderBy);
+    }
+
+    if (this.limitCount !== undefined) {
+      params.set('limit', String(this.limitCount));
+    }
+
+    for (const filter of this.filters) {
+      const [key, value] = filter.split('=');
+      params.append(key, value);
+    }
+
+    const query = params.toString();
+    return query ? `${baseUrl}?${query}` : baseUrl;
+  }
+
+  private async execute<S = T>(): Promise<SupabaseResponse<S>> {
+    const url = this.buildUrl();
+    const headers: Record<string, string> = {
+      apikey: this.apiKey,
+      'Content-Type': 'application/json',
+    };
+
+    if (this.accessToken) {
+      headers.Authorization = `Bearer ${this.accessToken}`;
+    }
+
+    if (this.preferHeader) {
+      headers.Prefer = this.preferHeader;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: this.method,
+        headers,
+        body: this.body ? JSON.stringify(this.body) : undefined,
+      });
+
+      const text = await response.text();
+      let data = null;
+
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+
+      if (!response.ok) {
+        const error: SupabaseError = {
+          message: data?.message || data?.error || `Request failed with status ${response.status}`,
+          code: data?.code || String(response.status),
+          details: data?.details,
+          hint: data?.hint,
+        };
+        return { data: null, error };
+      }
+
+      return { data: data as S, error: null };
+    } catch (error: any) {
+      return {
+        data: null,
+        error: {
+          message: error?.message || 'Network error',
+        },
+      };
+    }
+  }
+
+  async single<S = T>(): Promise<SupabaseResponse<S>> {
+    this.preferHeader = 'return=representation';
+    this.limitCount = 1;
+    const result = await this.execute<S[]>();
+
+    if (result.error) {
+      return { data: null, error: result.error };
+    }
+
+    if (!result.data || (Array.isArray(result.data) && result.data.length === 0)) {
+      return {
+        data: null,
+        error: { message: 'No rows found' },
+      };
+    }
+
+    const single = Array.isArray(result.data) ? result.data[0] : result.data;
+    return { data: single as S, error: null };
+  }
+
+  async maybeSingle<S = T>(): Promise<SupabaseResponse<S>> {
+    this.preferHeader = 'return=representation';
+    this.limitCount = 1;
+    const result = await this.execute<S[]>();
+
+    if (result.error) {
+      return { data: null, error: result.error };
+    }
+
+    if (!result.data || (Array.isArray(result.data) && result.data.length === 0)) {
+      return { data: null, error: null };
+    }
+
+    const single = Array.isArray(result.data) ? result.data[0] : result.data;
+    return { data: single as S, error: null };
+  }
+
+  then<S = T>(
+    onfulfilled?: (value: SupabaseResponse<T>) => S | Promise<S>,
+    onrejected?: (reason: any) => any
+  ): Promise<S> {
+    return this.execute<T>().then(onfulfilled as any, onrejected);
+  }
+}
+
+// Lightweight Supabase client implementation
+class SupabaseClient implements ServiceSupabaseClient {
+  private url: string;
+  private apiKey: string;
+  private accessToken?: string;
+
+  constructor(url: string, apiKey: string, accessToken?: string) {
+    this.url = url;
+    this.apiKey = apiKey;
+    this.accessToken = accessToken;
+  }
+
+  from<T = any>(table: string): QueryBuilder<T> {
+    return new SupabaseQueryBuilder<T>(table, this.url, this.apiKey, this.accessToken);
+  }
+
+  async rpc<T = any>(fn: string, params?: Record<string, any>): Promise<SupabaseResponse<T>> {
+    const url = `${this.url}/rest/v1/rpc/${fn}`;
+    const headers: Record<string, string> = {
+      apikey: this.apiKey,
+      'Content-Type': 'application/json',
+    };
+
+    if (this.accessToken) {
+      headers.Authorization = `Bearer ${this.accessToken}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: params ? JSON.stringify(params) : undefined,
+      });
+
+      const text = await response.text();
+      let data = null;
+
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+
+      if (!response.ok) {
+        const error: SupabaseError = {
+          message: data?.message || data?.error || `RPC failed with status ${response.status}`,
+          code: data?.code || String(response.status),
+          details: data?.details,
+          hint: data?.hint,
+        };
+        return { data: null, error };
+      }
+
+      return { data: data as T, error: null };
+    } catch (error: any) {
+      return {
+        data: null,
+        error: {
+          message: error?.message || 'Network error',
+        },
+      };
+    }
+  }
+
+  get auth(): Auth {
+    return {
+      admin: {
+        getUserById: async (userId: string): Promise<SupabaseResponse<{ user: User }>> => {
+          const url = `${this.url}/auth/v1/admin/users/${userId}`;
+          const headers: Record<string, string> = {
+            apikey: this.apiKey,
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          };
+
+          try {
+            const response = await fetch(url, {
+              method: 'GET',
+              headers,
+            });
+
+            const text = await response.text();
+            let data = null;
+
+            if (text) {
+              try {
+                data = JSON.parse(text);
+              } catch {
+                data = text;
+              }
+            }
+
+            if (!response.ok) {
+              const error: SupabaseError = {
+                message: data?.message || data?.error || `Auth request failed with status ${response.status}`,
+                code: data?.code || String(response.status),
+                details: data?.details,
+                hint: data?.hint,
+              };
+              return { data: null, error };
+            }
+
+            return { data: { user: data as User }, error: null };
+          } catch (error: any) {
+            return {
+              data: null,
+              error: {
+                message: error?.message || 'Network error',
+              },
+            };
+          }
+        },
+      },
+    };
+  }
+}
+
 export const getServiceSupabaseClient = (
   env: SupabaseEnv,
   accessToken?: string
@@ -103,19 +509,7 @@ export const getServiceSupabaseClient = (
   const { url, serviceRoleKey, anonKey } = resolveSupabaseConfig(env);
   const apiKey = serviceRoleKey || anonKey!;
 
-  const globalHeaders = accessToken
-    ? {
-        Authorization: `Bearer ${accessToken}`,
-      }
-    : undefined;
-
-  return createClient(url, apiKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-    global: globalHeaders ? { headers: globalHeaders } : undefined,
-  });
+  return new SupabaseClient(url, apiKey, accessToken);
 };
 
 export const extractAccessToken = (request: Request): string | null => {
