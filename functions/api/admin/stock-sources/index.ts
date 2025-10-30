@@ -29,7 +29,8 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     // Fetch all stock sources
     const { data: sources, error } = await supabase
       .from('stock_sources')
-      .select('key, name, cost, icon, icon_url, active, created_at, updated_at')
+      .select('key, name, cost, active, created_at, updated_at')
+      .order('cost', { ascending: true })
       .order('name', { ascending: true });
 
     if (error) {
@@ -41,9 +42,8 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
       key: source.key,
       name: source.name,
       cost: source.cost,
-      icon: source.icon,
-      iconUrl: source.icon_url || `https://nehtw.com/assets/icons/${source.key}.png`,
       active: source.active,
+      iconUrl: `https://nehtw.com/assets/icons/${source.key}.png`,
     }));
 
     return jsonResponse(request, 200, { sites });
