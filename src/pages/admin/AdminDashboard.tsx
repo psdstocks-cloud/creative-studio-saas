@@ -214,7 +214,7 @@ const AdminDashboard = () => {
                           {order.file_info?.title || order.file_info?.name || 'Untitled asset'}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {order.file_info?.site?.toUpperCase()}
+                          {order.file_info?.site?.toUpperCase() || '—'}
                         </p>
                       </div>
                     </div>

@@ -49,7 +49,7 @@ export const OrdersTable = ({
                 >
                   {info.title || info.name || info.site}
                 </p>
-                <p className="text-xs text-slate-400">{info.site.toUpperCase()}</p>
+                <p className="text-xs text-slate-400">{info.site?.toUpperCase() || '—'}</p>
               </div>
             </div>
           );
