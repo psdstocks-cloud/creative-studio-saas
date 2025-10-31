@@ -31,7 +31,13 @@
 </script>
 <style>
 .gradient-bg {
-  background: linear-gradient(-45deg, #101727, #152951, #3b2b64, #23a6d5);
+  background: linear-gradient(-45deg, #FFFFFF, #FAFBFC, #F0F4F8, #E5E7EB);
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+.dark .gradient-bg {
+  background: linear-gradient(-45deg, #0F172A, #1E293B, #334155, #1E3A5F);
   background-size: 400% 400%;
   animation: gradient 15s ease infinite;
 }
@@ -43,14 +49,21 @@
 }
 
 .glassmorphism {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.dark .glassmorphism {
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.5);
 }
 </style>
 </head>
-  <body class="bg-gray-100 dark:bg-gray-900">
+  <body class="bg-white dark:bg-slate-900">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>

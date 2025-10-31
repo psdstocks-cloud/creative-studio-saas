@@ -1,56 +1,56 @@
 /* Custom properties for theme consistency - WCAG AA Compliant */
 :root {
-  /* Light mode colors */
-  --background-start-rgb: 241, 245, 249; /* slate-100 */
-  --background-end-rgb: 226, 232, 240; /* slate-200 */
-  --glass-bg-rgb: 15, 23, 42; /* slate-900 for contrast in light mode */
+  /* Light mode - Clean White/Light Palette */
+  --background-start-rgb: 255, 255, 255; /* Pure white */
+  --background-end-rgb: 250, 251, 252; /* Very light */
+  --glass-bg-rgb: 31, 41, 55; /* For glassmorphism contrast */
 
   /* Primary brand colors - WCAG AA compliant */
-  --primary-rgb: 37, 99, 235; /* blue-600 - better contrast */
-  --primary-hover-rgb: 29, 78, 216; /* blue-700 */
-  --secondary-rgb: 71, 85, 105; /* slate-600 - better contrast */
+  --primary-rgb: 59, 130, 246; /* blue-500 */
+  --primary-hover-rgb: 37, 99, 235; /* blue-600 */
+  --secondary-rgb: 75, 85, 99; /* gray-600 */
   --accent-rgb: 147, 51, 234; /* purple-600 */
 
   /* Text colors - WCAG AA compliant (4.5:1 contrast ratio) */
-  --text-primary: 15, 23, 42; /* slate-900 - highest contrast */
-  --text-secondary: 71, 85, 105; /* slate-600 - 4.5:1+ contrast */
-  --text-tertiary: 100, 116, 139; /* slate-500 - for low emphasis */
-  --text-muted: 148, 163, 184; /* slate-400 - for hints/placeholders */
+  --text-primary: 17, 24, 39; /* gray-900 - very dark */
+  --text-secondary: 75, 85, 99; /* gray-600 */
+  --text-tertiary: 107, 114, 128; /* gray-500 */
+  --text-muted: 156, 163, 175; /* gray-400 */
 
   /* Background colors */
-  --bg-primary: 255, 255, 255; /* white */
-  --bg-secondary: 248, 250, 252; /* slate-50 */
-  --bg-tertiary: 241, 245, 249; /* slate-100 */
-  --bg-elevated: 255, 255, 255; /* white - for cards */
+  --bg-primary: 255, 255, 255; /* Pure white */
+  --bg-secondary: 255, 255, 255; /* White for cards */
+  --bg-tertiary: 246, 248, 250; /* Very light gray for hover */
+  --bg-elevated: 255, 255, 255; /* White for elevated cards */
 
   /* Border colors */
-  --border-color: 226, 232, 240; /* slate-200 */
-  --border-hover: 203, 213, 225; /* slate-300 */
+  --border-color: 229, 231, 235; /* gray-200 */
+  --border-hover: 209, 213, 219; /* gray-300 */
 
   /* Status colors - WCAG AA compliant */
-  --success-rgb: 22, 163, 74; /* green-600 */
-  --warning-rgb: 202, 138, 4; /* yellow-600 */
-  --error-rgb: 220, 38, 38; /* red-600 */
-  --info-rgb: 37, 99, 235; /* blue-600 */
+  --success-rgb: 16, 185, 129; /* green-500 */
+  --warning-rgb: 245, 158, 11; /* amber-500 */
+  --error-rgb: 239, 68, 68; /* red-500 */
+  --info-rgb: 59, 130, 246; /* blue-500 */
 }
 
 .dark {
-  /* Dark mode colors */
+  /* Dark mode - Modern Dark Blue-Gray Palette */
   --background-start-rgb: 15, 23, 42; /* slate-900 */
-  --background-end-rgb: 17, 24, 39; /* gray-900 */
-  --glass-bg-rgb: 255, 255, 255; /* white for contrast in dark mode */
+  --background-end-rgb: 30, 41, 59; /* slate-800 */
+  --glass-bg-rgb: 255, 255, 255; /* White for glassmorphism contrast */
 
   /* Primary brand colors - adjusted for dark backgrounds */
-  --primary-rgb: 96, 165, 250; /* blue-400 - WCAG AA on dark */
-  --primary-hover-rgb: 147, 197, 253; /* blue-300 */
-  --secondary-rgb: 148, 163, 184; /* slate-400 */
+  --primary-rgb: 59, 130, 246; /* blue-500 */
+  --primary-hover-rgb: 96, 165, 250; /* blue-400 */
+  --secondary-rgb: 203, 213, 225; /* slate-300 */
   --accent-rgb: 167, 139, 250; /* purple-400 */
 
   /* Text colors - WCAG AA compliant on dark backgrounds */
-  --text-primary: 248, 250, 252; /* slate-50 - highest contrast */
-  --text-secondary: 203, 213, 225; /* slate-300 - 4.5:1+ contrast */
-  --text-tertiary: 148, 163, 184; /* slate-400 - for low emphasis */
-  --text-muted: 100, 116, 139; /* slate-500 - for hints/placeholders */
+  --text-primary: 241, 245, 249; /* slate-100 */
+  --text-secondary: 203, 213, 225; /* slate-300 */
+  --text-tertiary: 148, 163, 184; /* slate-400 */
+  --text-muted: 100, 116, 139; /* slate-500 */
 
   /* Background colors */
   --bg-primary: 15, 23, 42; /* slate-900 */
@@ -63,9 +63,9 @@
   --border-hover: 71, 85, 105; /* slate-600 */
 
   /* Status colors - WCAG AA compliant on dark */
-  --success-rgb: 74, 222, 128; /* green-400 */
-  --warning-rgb: 250, 204, 21; /* yellow-400 */
-  --error-rgb: 248, 113, 113; /* red-400 */
+  --success-rgb: 16, 185, 129; /* green-500 */
+  --warning-rgb: 251, 191, 36; /* amber-400 */
+  --error-rgb: 239, 68, 68; /* red-500 */
   --info-rgb: 96, 165, 250; /* blue-400 */
 }
 

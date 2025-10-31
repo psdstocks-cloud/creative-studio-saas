@@ -36,14 +36,14 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-8 animate-fadeIn">
-      <h2 className="text-2xl font-bold text-center text-gray-800 dark:text-white mb-6">
+    <div className="bg-white dark:bg-slate-800 rounded-xl p-8 animate-fadeIn border border-gray-200 dark:border-slate-700 shadow-lg">
+      <h2 className="text-2xl font-bold text-center text-theme-text-primary mb-6">
         {t('signInToAccount')}
       </h2>
 
       {error && (
         <div
-          className="bg-red-100 dark:bg-red-900/50 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-6 rounded-md"
+          className="bg-red-50 dark:bg-red-900/50 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-6 rounded-md"
           role="alert"
         >
           <p>{error}</p>
@@ -57,7 +57,7 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
           </label>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3">
-              <EnvelopeIcon className="w-5 h-5 text-gray-400" />
+              <EnvelopeIcon className="w-5 h-5 text-theme-text-muted" />
             </div>
             <input
               type="email"
@@ -65,7 +65,7 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
               value={email}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               placeholder={t('email')}
-              className="w-full ps-10 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              className="w-full ps-10 p-3 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-theme-text-primary placeholder:text-theme-text-muted"
               required
             />
           </div>
@@ -76,7 +76,7 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
           </label>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3">
-              <LockClosedIcon className="w-5 h-5 text-gray-400" />
+              <LockClosedIcon className="w-5 h-5 text-theme-text-muted" />
             </div>
             <input
               type={showPassword ? 'text' : 'password'}
@@ -84,13 +84,13 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
               value={password}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
               placeholder={t('password')}
-              className="w-full ps-10 pe-12 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+              className="w-full ps-10 pe-12 p-3 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-theme-text-primary placeholder:text-theme-text-muted"
               required
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-800"
+              className="absolute inset-y-0 end-0 flex items-center pe-3 text-theme-text-secondary hover:text-theme-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               aria-label={showPassword ? t('hidePassword') : t('showPassword')}
               aria-pressed={showPassword}
             >
@@ -121,7 +121,7 @@ const SignIn = ({ onSwitchToSignUp, onForgotPassword }: SignInProps) => {
         </button>
       </form>
 
-      <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-8">
+      <p className="text-center text-sm text-theme-text-secondary mt-8">
         {t('dontHaveAccount')}{' '}
         <button
           onClick={onSwitchToSignUp}
