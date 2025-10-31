@@ -5,6 +5,8 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
+import { WebSocketServer, WebSocket } from 'ws';
+import { createDownloadManager } from './downloads/downloadManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,6 +92,51 @@ if (!process.env.SESSION_SECRET) {
 // ---------------------------------------------------------------------------
 
 const sessionStore = new Map();
+
+const downloadSocketClients = new Map();
+
+const broadcastDownloadEvent = (userId, payload) => {
+  if (!userId) {
+    return;
+  }
+  const clients = downloadSocketClients.get(userId);
+  if (!clients || clients.size === 0) {
+    return;
+  }
+  const message = JSON.stringify(payload);
+  for (const socket of clients) {
+    if (socket.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(message);
+      } catch (error) {
+        console.error('Failed to broadcast download event', error);
+      }
+    }
+  }
+};
+
+downloadManager.on('event', (event) => {
+  if (!event) {
+    return;
+  }
+
+  let userId = null;
+  if (event.type === 'job_created' || event.type === 'job_updated') {
+    userId = event.job?.user_id || null;
+  } else if (event.type === 'item_updated') {
+    userId = event.item?.user_id || null;
+    if (!userId && event.item?.job_id) {
+      const jobSnapshot = downloadManager.getJobSnapshot(event.item.job_id);
+      userId = jobSnapshot?.user_id || null;
+    }
+  } else if (event.type === 'job_completed' || event.type === 'job_failed') {
+    userId = event.user_id || null;
+  }
+
+  if (userId) {
+    broadcastDownloadEvent(userId, event);
+  }
+});
 
 const ensureDirectory = (dirPath) => {
   try {
@@ -299,6 +346,14 @@ const supabaseAdminClient = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
       },
     })
   : null;
+
+const DOWNLOAD_CONCURRENCY = Number(process.env.DOWNLOAD_CONCURRENCY || 3);
+
+const downloadManager = createDownloadManager({
+  getSupabaseClient: () => supabaseAdminClient,
+  concurrency: Number.isFinite(DOWNLOAD_CONCURRENCY) ? DOWNLOAD_CONCURRENCY : 3,
+  logger: console,
+});
 
 const ensureSupabaseAdminClient = () => {
   if (!supabaseAdminClient) {
@@ -1464,6 +1519,131 @@ app.use('/api/admin', adminRouter);
 // Upstream API proxy with RBAC-aware auditing
 // ---------------------------------------------------------------------------
 
+const normalizeDownloadItemsPayload = (raw) => {
+  if (!raw) {
+    return [];
+  }
+
+  const items = [];
+  if (Array.isArray(raw.items)) {
+    for (const item of raw.items) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const sourceUrl = typeof item.source_url === 'string' ? item.source_url.trim() : null;
+      if (!sourceUrl) {
+        continue;
+      }
+      items.push({
+        source_url: sourceUrl,
+        provider: typeof item.provider === 'string' ? item.provider : undefined,
+        filename: typeof item.filename === 'string' ? item.filename : undefined,
+        bytes_total:
+          typeof item.bytes_total === 'number' && Number.isFinite(item.bytes_total)
+            ? item.bytes_total
+            : null,
+        thumb_url: typeof item.thumb_url === 'string' ? item.thumb_url : undefined,
+        meta:
+          item.meta && typeof item.meta === 'object' && !Array.isArray(item.meta)
+            ? item.meta
+            : undefined,
+      });
+    }
+  } else if (Array.isArray(raw.source_urls)) {
+    for (const source of raw.source_urls) {
+      if (typeof source === 'string' && source.trim().length > 0) {
+        items.push({ source_url: source.trim() });
+      }
+    }
+  }
+
+  return items;
+};
+
+app.post('/api/downloads', requireAuth, async (req, res) => {
+  try {
+    const items = normalizeDownloadItemsPayload(req.body);
+    if (items.length === 0) {
+      res.status(400).json({ message: 'At least one valid item is required.' });
+      return;
+    }
+
+    const title = typeof req.body?.title === 'string' ? req.body.title.trim() : undefined;
+
+    const result = await downloadManager.createJob({
+      userId: req.user.id,
+      items,
+      title,
+    });
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Failed to create download job', error);
+    const status = typeof error?.status === 'number' ? error.status : 500;
+    res.status(status).json({
+      message: error?.message || 'Unable to start the download job.',
+    });
+  }
+});
+
+app.get('/api/downloads', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const cursor = typeof req.query.cursor === 'string' && req.query.cursor ? req.query.cursor : null;
+
+    const result = await downloadManager.listJobs(req.user.id, { limit, cursor });
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to list download jobs', error);
+    const status = typeof error?.status === 'number' ? error.status : 500;
+    res.status(status).json({
+      message: error?.message || 'Unable to fetch download jobs.',
+    });
+  }
+});
+
+app.get('/api/downloads/:jobId', requireAuth, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const result = await downloadManager.getJob(req.user.id, jobId);
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to fetch download job', error);
+    const status = typeof error?.status === 'number' ? error.status : 404;
+    res.status(status).json({
+      message: error?.message || 'Download job not found.',
+    });
+  }
+});
+
+app.post('/api/downloads/:jobId/cancel', requireAuth, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await downloadManager.cancelJob(req.user.id, jobId);
+    res.json({ job });
+  } catch (error) {
+    console.error('Failed to cancel download job', error);
+    const status = typeof error?.status === 'number' ? error.status : 400;
+    res.status(status).json({
+      message: error?.message || 'Unable to cancel download job.',
+    });
+  }
+});
+
+app.post('/api/download-items/:itemId/retry', requireAuth, async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const item = await downloadManager.retryItem(req.user.id, itemId);
+    res.json({ item });
+  } catch (error) {
+    console.error('Failed to retry download item', error);
+    const status = typeof error?.status === 'number' ? error.status : 400;
+    res.status(status).json({
+      message: error?.message || 'Unable to retry download item.',
+    });
+  }
+});
+
 const proxyAuditResource = (req) => ({
   upstream: req.proxyTargetUrl,
   method: req.method,
@@ -1575,9 +1755,94 @@ app.use((err, req, res, _next) => {
   });
 });
 
-app.listen(port, () => {
+const serverInstance = app.listen(port, () => {
   console.log(`✅ BFF Server is running on http://localhost:${port}`);
   console.log(`🔒 Environment: ${NODE_ENV}`);
   console.log(`📡 CORS allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
   console.log(`📝 Audit log: ${AUDIT_LOG_PATH}`);
+});
+
+const downloadsWebSocketServer = new WebSocketServer({
+  server: serverInstance,
+  path: '/ws/downloads',
+});
+
+const registerDownloadSocket = (userId, socket) => {
+  let clients = downloadSocketClients.get(userId);
+  if (!clients) {
+    clients = new Set();
+    downloadSocketClients.set(userId, clients);
+  }
+  clients.add(socket);
+};
+
+const unregisterDownloadSocket = (userId, socket) => {
+  const clients = downloadSocketClients.get(userId);
+  if (!clients) {
+    return;
+  }
+  clients.delete(socket);
+  if (clients.size === 0) {
+    downloadSocketClients.delete(userId);
+  }
+};
+
+downloadsWebSocketServer.on('connection', (socket, request) => {
+  try {
+    const cookies = parseCookies(request.headers.cookie);
+    const sessionId = cookies[SESSION_COOKIE_NAME];
+    const session = sessionId ? sessionStore.get(sessionId) : null;
+
+    if (!session || !session.user) {
+      socket.close(4401, 'Unauthorized');
+      return;
+    }
+
+    const userId = session.user.id;
+    registerDownloadSocket(userId, socket);
+
+    socket.on('close', () => {
+      unregisterDownloadSocket(userId, socket);
+    });
+
+    socket.on('error', (error) => {
+      console.error('Download websocket error', error);
+      unregisterDownloadSocket(userId, socket);
+    });
+
+    socket.on('message', (data) => {
+      if (typeof data === 'string' && data.trim().toLowerCase() === 'ping') {
+        socket.send('pong');
+      }
+    });
+
+    socket.send(
+      JSON.stringify({
+        type: 'connection_ack',
+        user_id: userId,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    downloadManager
+      .listJobs(userId, { limit: 50 })
+      .then(({ jobs }) => {
+        socket.send(
+          JSON.stringify({
+            type: 'bootstrap',
+            jobs,
+          })
+        );
+      })
+      .catch((error) => {
+        console.error('Failed to bootstrap downloads socket', error);
+      });
+  } catch (error) {
+    console.error('Unexpected error handling websocket connection', error);
+    try {
+      socket.close(1011, 'Internal error');
+    } catch (_err) {
+      // ignore
+    }
+  }
 });
