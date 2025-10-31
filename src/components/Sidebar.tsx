@@ -18,6 +18,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { useLayoutStore } from '../stores/layoutStore';
 import { cn } from '../lib/utils';
+import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
   id: string;
@@ -79,21 +80,23 @@ const Sidebar = () => {
   const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
     cn(
       'flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200',
-      isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white',
+      isActive
+        ? 'bg-blue-600 text-white dark:bg-blue-500'
+        : 'text-gray-700 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white',
       isSidebarCollapsed && 'justify-center px-2'
     );
 
   return (
     <aside
       className={cn(
-        'flex flex-col bg-gray-800 text-white transition-all duration-200',
+        'flex flex-col bg-white text-gray-900 dark:bg-gray-800 dark:text-white transition-all duration-200 border-r border-gray-200 dark:border-gray-700',
         isSidebarCollapsed ? 'w-20' : 'w-64'
       )}
     >
-      <div className="flex h-20 items-center border-b border-gray-700 px-3">
+      <div className="flex h-20 items-center border-b border-gray-200 dark:border-gray-700 px-3">
         <div
           className={cn(
-            'flex-1 font-bold text-white',
+            'flex-1 font-bold text-gray-900 dark:text-white',
             isSidebarCollapsed ? 'text-xl text-center' : 'text-2xl'
           )}
         >
@@ -111,7 +114,7 @@ const Sidebar = () => {
           size="icon"
           onClick={toggleSidebar}
           aria-label="Toggle sidebar"
-          className="text-gray-300 hover:text-white"
+          className="text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
         >
           <MenuIcon className="h-5 w-5" />
         </Button>
@@ -141,7 +144,7 @@ const Sidebar = () => {
             key={item.id}
             variant="ghost"
             className={cn(
-              'w-full justify-start gap-3 text-gray-400 hover:bg-gray-700 hover:text-white',
+              'w-full justify-start gap-3 text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white',
               isSidebarCollapsed && 'justify-center'
             )}
           >
@@ -153,28 +156,28 @@ const Sidebar = () => {
 
       {!isSidebarCollapsed && (
         <>
-          <div className="border-t border-gray-700 px-4 py-3">
-            <p className="text-sm text-gray-400">{t('availablePoints')}</p>
-            <p className="text-xl font-bold text-white">
+          <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('availablePoints')}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">
               {user?.balance.toFixed(2)}{' '}
-              <span className="text-base font-medium text-gray-300">{t('points')}</span>
+              <span className="text-base font-medium text-gray-700 dark:text-gray-300">{t('points')}</span>
             </p>
           </div>
-          <div className="border-t border-gray-700 px-4 py-3">
-            <p className="truncate text-sm text-gray-400" title={user?.email}>
+          <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+            <p className="truncate text-sm text-gray-600 dark:text-gray-400" title={user?.email}>
               {user?.email}
             </p>
           </div>
         </>
       )}
 
-      <div className="border-t border-gray-700 p-2">
+      <div className="border-t border-gray-200 dark:border-gray-700 p-2">
         <Button
           type="button"
           onClick={signOut}
           variant="ghost"
           className={cn(
-            'w-full items-center justify-start gap-3 text-gray-400 hover:bg-red-800/50 hover:text-white',
+            'w-full items-center justify-start gap-3 text-gray-600 hover:bg-red-100 hover:text-red-700 dark:text-gray-400 dark:hover:bg-red-800/50 dark:hover:text-white',
             isSidebarCollapsed && 'justify-center'
           )}
         >
@@ -185,10 +188,11 @@ const Sidebar = () => {
 
       <div
         className={cn(
-          'border-t border-gray-700 p-4',
+          'border-t border-gray-200 dark:border-gray-700 p-4',
           isSidebarCollapsed ? 'flex flex-col gap-2' : 'flex items-center justify-around'
         )}
       >
+        <ThemeToggle />
         <Button
           type="button"
           onClick={() => setLanguage('en')}

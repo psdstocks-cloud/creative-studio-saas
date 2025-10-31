@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { QueryClientProvider, queryClient } from './lib/queryClient';
 import { LayoutProvider } from './stores/layoutStore';
@@ -45,14 +46,16 @@ if (!config.supabase.isAvailable) {
       <ErrorBoundary>
         <BrowserRouter>
           <QueryClientProvider client={queryClient}>
-            <LayoutProvider>
-              <LanguageProvider>
-                <AuthProvider>
-                  <App />
-                  <Toaster />
-                </AuthProvider>
-              </LanguageProvider>
-            </LayoutProvider>
+            <ThemeProvider>
+              <LayoutProvider>
+                <LanguageProvider>
+                  <AuthProvider>
+                    <App />
+                    <Toaster />
+                  </AuthProvider>
+                </LanguageProvider>
+              </LayoutProvider>
+            </ThemeProvider>
           </QueryClientProvider>
         </BrowserRouter>
       </ErrorBoundary>
