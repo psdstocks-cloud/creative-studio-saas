@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import morgan from 'morgan';
 import { createClient } from '@supabase/supabase-js';
 import { WebSocketServer, WebSocket } from 'ws';
 import { buildCors, getAllowedOrigins } from './src/server/lib/cors.js';
@@ -637,7 +636,6 @@ const audit = (action, buildResource = () => ({})) => (req, res, next) => {
 // ---------------------------------------------------------------------------
 
 app.use(buildCors());
-app.use(morgan('tiny'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(assignRequestId);

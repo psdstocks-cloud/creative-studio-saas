@@ -1,114 +1,79 @@
-/* eslint-env node */
-
-import process from 'node:process';
-import { URL } from 'url';
-import { request } from 'undici';
+// src/server/lib/proxy.js
+import { Readable } from 'node:stream';
 
 const STOCK_UPSTREAM = process.env.STOCK_API_BASE_URL || 'https://nehtw.com/api';
 const STOCK_KEY = process.env.STOCK_API_KEY;
 
-const normalizeBase = (base) => {
-  if (!base) {
-    return 'https://nehtw.com/api/';
-  }
-  return base.endsWith('/') ? base : `${base}/`;
-};
+function ensureTrailingSlash(url) {
+  return url.endsWith('/') ? url : url + '/';
+}
 
+/**
+ * Build upstream URL (preserves query string)
+ */
 export function buildUpstreamUrl(path, searchParams = {}) {
-  const upstreamBase = normalizeBase(STOCK_UPSTREAM);
-  const url = new URL(path, upstreamBase);
-
-  const entries = Object.entries(searchParams || {});
-  for (const [key, value] of entries) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (item !== undefined && item !== null) {
-          url.searchParams.append(key, String(item));
-        }
-      }
-      continue;
-    }
-
-    if (value !== undefined && value !== null) {
-      url.searchParams.set(key, String(value));
+  const url = new URL(path, ensureTrailingSlash(STOCK_UPSTREAM));
+  for (const [k, v] of Object.entries(searchParams)) {
+    if (v !== undefined && v !== null) {
+      url.searchParams.set(k, String(v));
     }
   }
-
   return url.toString();
 }
 
-export function upstreamHeaders(req) {
-  const headers = {};
+/**
+ * Headers to forward to upstream.
+ */
+export function upstreamHeaders() {
+  const headers = new Headers();
   if (STOCK_KEY) {
-    headers['X-Api-Key'] = STOCK_KEY;
+    headers.set('Authorization', `Bearer ${STOCK_KEY}`);
   }
-
-  const accept = req.headers.accept;
-  if (accept) {
-    headers['accept'] = accept;
-  }
-
-  const userAgent = req.headers['user-agent'];
-  if (userAgent) {
-    headers['user-agent'] = userAgent;
-  }
-
   return headers;
 }
 
+function toWebReadable(req) {
+  if (typeof Readable.toWeb !== 'function') {
+    throw new Error('Readable.toWeb is unavailable in this Node version');
+  }
+  return Readable.toWeb(req);
+}
+
+/**
+ * Stream upstream response back to client.
+ * - Do not set Content-Length yourself
+ * - Preserve upstream Content-Encoding to avoid decoding errors
+ */
 export async function streamProxy({ url, method = 'GET', req, res }) {
   const upperMethod = method.toUpperCase();
-  const hasBody = upperMethod !== 'GET' && upperMethod !== 'HEAD';
+  const hasBody = !['GET', 'HEAD'].includes(upperMethod);
 
-  const upstreamResponse = await request(url, {
+  const requestInit = {
     method: upperMethod,
-    headers: upstreamHeaders(req),
-    body: hasBody ? req : undefined,
-    maxRedirections: 0,
-  });
+    headers: upstreamHeaders(),
+  };
 
-  const { statusCode, headers, body } = upstreamResponse;
-
-  for (const [key, value] of Object.entries(headers)) {
-    if (!key) continue;
-    if (key.toLowerCase() === 'content-length') continue;
-    if (key.toLowerCase() === 'transfer-encoding' && value === 'chunked') continue;
-    if (value !== undefined) {
-      res.setHeader(key, value);
-    }
+  if (hasBody) {
+    requestInit.body = toWebReadable(req);
+    requestInit.duplex = 'half';
   }
 
-  res.status(statusCode);
+  const upstreamResponse = await fetch(url, requestInit);
 
-  await new Promise((resolve, reject) => {
-    const handleError = (err) => {
-      cleanup();
-      reject(err);
-    };
-
-    const handleFinish = () => {
-      cleanup();
-      resolve();
-    };
-
-    const handleClose = () => {
-      body.destroy();
-      cleanup();
-      resolve();
-    };
-
-    const cleanup = () => {
-      body.off('error', handleError);
-      res.off('error', handleError);
-      res.off('finish', handleFinish);
-      res.off('close', handleClose);
-    };
-
-    body.on('error', handleError);
-    res.on('error', handleError);
-    res.on('finish', handleFinish);
-    res.on('close', handleClose);
-
-    body.pipe(res);
+  // Copy headers except content-length (node will handle)
+  upstreamResponse.headers.forEach((value, key) => {
+    if (!key) return;
+    if (key.toLowerCase() === 'content-length') return;
+    res.setHeader(key, value);
   });
+
+  res.status(upstreamResponse.status);
+
+  if (!upstreamResponse.body) {
+    res.end();
+    return;
+  }
+
+  const readable = Readable.fromWeb(upstreamResponse.body);
+  readable.pipe(res);
 }

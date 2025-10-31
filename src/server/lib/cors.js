@@ -1,41 +1,61 @@
-/* eslint-env node */
-
-import process from 'node:process';
-import cors from 'cors';
+// src/server/lib/cors.js
+// Lightweight CORS middleware without external dependency.
+// Allows configured origins and handles OPTIONS preflight requests.
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://creative-studio-saas.pages.dev',
   'http://localhost:5173',
 ];
 
-export function getAllowedOrigins() {
-  const configured =
-    process.env.CORS_ALLOWED_ORIGINS ||
-    process.env.ALLOWED_ORIGINS ||
-    '';
-
-  const parsed = configured
+function parseAllowedOrigins() {
+  const configured = (process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')
-    .map(origin => origin.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
 
-  return parsed.length > 0 ? parsed : DEFAULT_ALLOWED_ORIGINS;
+  return configured.length > 0 ? configured : DEFAULT_ALLOWED_ORIGINS;
+}
+
+const ALLOW_CREDENTIALS = String(process.env.CORS_ALLOW_CREDENTIALS ?? 'true').toLowerCase() === 'true';
+
+function setCorsHeaders(res, origin) {
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    if (ALLOW_CREDENTIALS) {
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Request-ID, X-Audit-Reason'
+  );
+  res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
 }
 
 export function buildCors() {
-  const allowedOrigins = new Set(getAllowedOrigins());
-  const allowCredentials = String(process.env.CORS_ALLOW_CREDENTIALS ?? 'true').toLowerCase() === 'true';
+  const allowed = parseAllowedOrigins();
 
-  return cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) {
-        callback(null, true);
+  return function corsMiddleware(req, res, next) {
+    const origin = req.headers.origin;
+
+    if (!origin || allowed.includes(origin)) {
+      setCorsHeaders(res, origin);
+      if (req.method === 'OPTIONS') {
+        res.status(204).end();
         return;
       }
-      callback(new Error(`Not allowed by CORS: ${origin}`));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
-    credentials: allowCredentials,
-  });
+      next();
+      return;
+    }
+
+    res.status(403).json({ message: 'Not allowed by CORS: ' + origin });
+  };
+}
+
+export function getAllowedOrigins() {
+  return parseAllowedOrigins();
 }
