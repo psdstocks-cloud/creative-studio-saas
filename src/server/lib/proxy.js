@@ -60,10 +60,25 @@ export async function streamProxy({ url, method = 'GET', req, res }) {
 
   const upstreamResponse = await fetch(url, requestInit);
 
-  // Copy headers except content-length (node will handle)
+  // Copy headers except content-length, CORS headers, and content-encoding
+  // - content-length: Node.js will handle this automatically
+  // - CORS headers: Our CORS middleware already handles these
+  // - content-encoding: fetch API may decode automatically, causing mismatches
+  const excludedHeaders = new Set([
+    'content-length',
+    'access-control-allow-origin',
+    'access-control-allow-credentials',
+    'access-control-allow-methods',
+    'access-control-allow-headers',
+    'access-control-expose-headers',
+    'access-control-max-age',
+    'content-encoding',
+    'transfer-encoding',
+  ]);
+
   upstreamResponse.headers.forEach((value, key) => {
     if (!key) return;
-    if (key.toLowerCase() === 'content-length') return;
+    if (excludedHeaders.has(key.toLowerCase())) return;
     res.setHeader(key, value);
   });
 

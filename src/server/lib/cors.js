@@ -18,15 +18,22 @@ function parseAllowedOrigins() {
 
 const ALLOW_CREDENTIALS = String(process.env.CORS_ALLOW_CREDENTIALS ?? 'true').toLowerCase() === 'true';
 
-function setCorsHeaders(res, origin) {
+function setCorsHeaders(res, origin, allowedOrigins) {
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     if (ALLOW_CREDENTIALS) {
       res.setHeader('Access-Control-Allow-Credentials', 'true');
     }
-  } else {
+  } else if (!ALLOW_CREDENTIALS) {
+    // Only use wildcard when credentials are NOT required
     res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    // When credentials are required but no origin header is present,
+    // use the first allowed origin as a fallback
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader(
@@ -43,7 +50,7 @@ export function buildCors() {
     const origin = req.headers.origin;
 
     if (!origin || allowed.includes(origin)) {
-      setCorsHeaders(res, origin);
+      setCorsHeaders(res, origin, allowed);
       if (req.method === 'OPTIONS') {
         res.status(204).end();
         return;
