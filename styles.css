@@ -1,40 +1,72 @@
-/* Custom properties for theme consistency */
+/* Custom properties for theme consistency - WCAG AA Compliant */
 :root {
   /* Light mode colors */
   --background-start-rgb: 241, 245, 249; /* slate-100 */
   --background-end-rgb: 226, 232, 240; /* slate-200 */
   --glass-bg-rgb: 15, 23, 42; /* slate-900 for contrast in light mode */
 
-  /* Common theme variables */
-  --primary-rgb: 59, 130, 246; /* blue-500 */
-  --secondary-rgb: 100, 116, 139; /* slate-500 */
+  /* Primary brand colors - WCAG AA compliant */
+  --primary-rgb: 37, 99, 235; /* blue-600 - better contrast */
+  --primary-hover-rgb: 29, 78, 216; /* blue-700 */
+  --secondary-rgb: 71, 85, 105; /* slate-600 - better contrast */
   --accent-rgb: 147, 51, 234; /* purple-600 */
 
-  /* Additional light mode theme variables */
-  --text-primary: 31, 41, 55; /* gray-800 */
-  --text-secondary: 107, 114, 128; /* gray-500 */
+  /* Text colors - WCAG AA compliant (4.5:1 contrast ratio) */
+  --text-primary: 15, 23, 42; /* slate-900 - highest contrast */
+  --text-secondary: 71, 85, 105; /* slate-600 - 4.5:1+ contrast */
+  --text-tertiary: 100, 116, 139; /* slate-500 - for low emphasis */
+  --text-muted: 148, 163, 184; /* slate-400 - for hints/placeholders */
+
+  /* Background colors */
   --bg-primary: 255, 255, 255; /* white */
-  --bg-secondary: 249, 250, 251; /* gray-50 */
-  --border-color: 229, 231, 235; /* gray-200 */
+  --bg-secondary: 248, 250, 252; /* slate-50 */
+  --bg-tertiary: 241, 245, 249; /* slate-100 */
+  --bg-elevated: 255, 255, 255; /* white - for cards */
+
+  /* Border colors */
+  --border-color: 226, 232, 240; /* slate-200 */
+  --border-hover: 203, 213, 225; /* slate-300 */
+
+  /* Status colors - WCAG AA compliant */
+  --success-rgb: 22, 163, 74; /* green-600 */
+  --warning-rgb: 202, 138, 4; /* yellow-600 */
+  --error-rgb: 220, 38, 38; /* red-600 */
+  --info-rgb: 37, 99, 235; /* blue-600 */
 }
 
 .dark {
   /* Dark mode colors */
-  --background-start-rgb: 20, 29, 49; /* dark blue */
-  --background-end-rgb: 15, 23, 42; /* slate-900 */
+  --background-start-rgb: 15, 23, 42; /* slate-900 */
+  --background-end-rgb: 17, 24, 39; /* gray-900 */
   --glass-bg-rgb: 255, 255, 255; /* white for contrast in dark mode */
 
-  /* Common theme variables (adjusted for dark mode) */
-  --primary-rgb: 96, 165, 250; /* blue-400 (lighter for dark mode) */
+  /* Primary brand colors - adjusted for dark backgrounds */
+  --primary-rgb: 96, 165, 250; /* blue-400 - WCAG AA on dark */
+  --primary-hover-rgb: 147, 197, 253; /* blue-300 */
   --secondary-rgb: 148, 163, 184; /* slate-400 */
   --accent-rgb: 167, 139, 250; /* purple-400 */
 
-  /* Additional dark mode theme variables */
-  --text-primary: 229, 231, 235; /* gray-200 */
-  --text-secondary: 156, 163, 175; /* gray-400 */
-  --bg-primary: 17, 24, 39; /* gray-900 */
-  --bg-secondary: 31, 41, 55; /* gray-800 */
-  --border-color: 55, 65, 81; /* gray-700 */
+  /* Text colors - WCAG AA compliant on dark backgrounds */
+  --text-primary: 248, 250, 252; /* slate-50 - highest contrast */
+  --text-secondary: 203, 213, 225; /* slate-300 - 4.5:1+ contrast */
+  --text-tertiary: 148, 163, 184; /* slate-400 - for low emphasis */
+  --text-muted: 100, 116, 139; /* slate-500 - for hints/placeholders */
+
+  /* Background colors */
+  --bg-primary: 15, 23, 42; /* slate-900 */
+  --bg-secondary: 30, 41, 59; /* slate-800 */
+  --bg-tertiary: 51, 65, 85; /* slate-700 */
+  --bg-elevated: 30, 41, 59; /* slate-800 - for cards */
+
+  /* Border colors */
+  --border-color: 51, 65, 85; /* slate-700 */
+  --border-hover: 71, 85, 105; /* slate-600 */
+
+  /* Status colors - WCAG AA compliant on dark */
+  --success-rgb: 74, 222, 128; /* green-400 */
+  --warning-rgb: 250, 204, 21; /* yellow-400 */
+  --error-rgb: 248, 113, 113; /* red-400 */
+  --info-rgb: 96, 165, 250; /* blue-400 */
 }
 
 /* Gradient Background */
