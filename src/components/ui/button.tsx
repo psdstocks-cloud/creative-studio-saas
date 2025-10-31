@@ -5,18 +5,18 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-slate-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-white dark:ring-offset-slate-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-slate-50 text-slate-900 hover:bg-slate-50/90',
-        destructive: 'bg-rose-500 text-slate-50 hover:bg-rose-500/90',
-        outline: 'border border-slate-700 bg-slate-900 hover:bg-slate-800 hover:text-slate-100',
-        secondary: 'bg-slate-800 text-slate-100 hover:bg-slate-800/80',
-        ghost: 'hover:bg-slate-800 hover:text-slate-50',
-        link: 'text-slate-50 underline-offset-4 hover:underline',
-        primary: 'bg-blue-600 text-white hover:bg-blue-700',
-        success: 'bg-emerald-600 text-white hover:bg-emerald-700',
+        default: 'bg-slate-900 text-slate-50 hover:bg-slate-900/90 dark:bg-slate-50 dark:text-slate-900 dark:hover:bg-slate-50/90',
+        destructive: 'bg-rose-500 text-slate-50 hover:bg-rose-500/90 dark:bg-rose-600 dark:hover:bg-rose-600/90',
+        outline: 'border border-slate-300 bg-white hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100',
+        secondary: 'bg-slate-200 text-slate-900 hover:bg-slate-200/80 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-800/80',
+        ghost: 'hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-50',
+        link: 'text-slate-900 underline-offset-4 hover:underline dark:text-slate-50',
+        primary: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600',
+        success: 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600',
       },
       size: {
         default: 'h-10 px-4 py-2',
