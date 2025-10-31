@@ -17,17 +17,15 @@ stockinfoRouter.get('/:site/:id', async (req, res) => {
   }
 });
 
-stockinfoRouter.all('/*', async (req, res) => {
+stockinfoRouter.use(async (req, res) => {
   try {
-    const tail = req.params[0] || '';
-    const normalizedTail = tail.replace(/^\//, '');
-    const resourcePath = normalizedTail ? `stockinfo/${normalizedTail}` : 'stockinfo';
+    const tail = req.path.replace(/^\/+/, '');
+    const resourcePath = tail ? `stockinfo/${tail}` : 'stockinfo';
     const url = buildUpstreamUrl(resourcePath, req.query);
 
     await streamProxy({ url, method: req.method, req, res });
   } catch (error) {
     const status = typeof error?.status === 'number' ? error.status : 502;
-    res.status(status).json({ message: 'Upstream error' });
   }
 });
 
