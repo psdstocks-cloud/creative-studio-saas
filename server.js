@@ -1692,8 +1692,21 @@ app.use('/api', async (req, res, next) => {
 
     const responseText = await upstreamResponse.text();
 
+    // Copy upstream headers, but exclude CORS headers to prevent conflicts
+    // Our CORS middleware at the top of the file handles CORS properly
+    const corsHeaders = new Set([
+      'access-control-allow-origin',
+      'access-control-allow-credentials',
+      'access-control-allow-methods',
+      'access-control-allow-headers',
+      'access-control-expose-headers',
+      'access-control-max-age',
+    ]);
+
     upstreamResponse.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'content-length') {
+      const lowerKey = key.toLowerCase();
+      // Skip content-length and CORS headers
+      if (lowerKey === 'content-length' || corsHeaders.has(lowerKey)) {
         return;
       }
       res.setHeader(key, value);
