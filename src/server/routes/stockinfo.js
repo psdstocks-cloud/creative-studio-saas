@@ -26,9 +26,6 @@ stockinfoRouter.use(async (req, res) => {
     await streamProxy({ url, method: req.method, req, res });
   } catch (error) {
     const status = typeof error?.status === 'number' ? error.status : 502;
-    if (!res.headersSent) {
-      res.status(status).json({ message: 'Upstream error' });
-    }
   }
 });
 
