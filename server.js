@@ -115,29 +115,6 @@ const broadcastDownloadEvent = (userId, payload) => {
   }
 };
 
-downloadManager.on('event', (event) => {
-  if (!event) {
-    return;
-  }
-
-  let userId = null;
-  if (event.type === 'job_created' || event.type === 'job_updated') {
-    userId = event.job?.user_id || null;
-  } else if (event.type === 'item_updated') {
-    userId = event.item?.user_id || null;
-    if (!userId && event.item?.job_id) {
-      const jobSnapshot = downloadManager.getJobSnapshot(event.item.job_id);
-      userId = jobSnapshot?.user_id || null;
-    }
-  } else if (event.type === 'job_completed' || event.type === 'job_failed') {
-    userId = event.user_id || null;
-  }
-
-  if (userId) {
-    broadcastDownloadEvent(userId, event);
-  }
-});
-
 const ensureDirectory = (dirPath) => {
   try {
     fs.mkdirSync(dirPath, { recursive: true });
@@ -353,6 +330,29 @@ const downloadManager = createDownloadManager({
   getSupabaseClient: () => supabaseAdminClient,
   concurrency: Number.isFinite(DOWNLOAD_CONCURRENCY) ? DOWNLOAD_CONCURRENCY : 3,
   logger: console,
+});
+
+downloadManager.on('event', (event) => {
+  if (!event) {
+    return;
+  }
+
+  let userId = null;
+  if (event.type === 'job_created' || event.type === 'job_updated') {
+    userId = event.job?.user_id || null;
+  } else if (event.type === 'item_updated') {
+    userId = event.item?.user_id || null;
+    if (!userId && event.item?.job_id) {
+      const jobSnapshot = downloadManager.getJobSnapshot(event.item.job_id);
+      userId = jobSnapshot?.user_id || null;
+    }
+  } else if (event.type === 'job_completed' || event.type === 'job_failed') {
+    userId = event.user_id || null;
+  }
+
+  if (userId) {
+    broadcastDownloadEvent(userId, event);
+  }
 });
 
 const ensureSupabaseAdminClient = () => {
