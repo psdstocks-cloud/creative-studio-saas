@@ -6,38 +6,19 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import { WebSocketServer, WebSocket } from 'ws';
+import { buildCors, getAllowedOrigins } from './src/server/lib/cors.js';
+import { ordersRouter } from './src/server/routes/orders.js';
+import { stockinfoRouter } from './src/server/routes/stockinfo.js';
 import { createDownloadManager } from './downloads/downloadManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 8080;
+const port = Number(process.env.PORT || 3000);
+const allowedOrigins = getAllowedOrigins();
 
 app.disable('x-powered-by');
-
-// ---------------------------------------------------------------------------
-// CORS configuration for frontend
-// ---------------------------------------------------------------------------
-
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : ['https://creative-studio-saas.pages.dev', 'http://localhost:5173'];
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID');
-    res.setHeader('Vary', 'Origin');
-  }
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
 
 // ---------------------------------------------------------------------------
 // Configuration helpers
@@ -654,6 +635,7 @@ const audit = (action, buildResource = () => ({})) => (req, res, next) => {
 // Application middleware
 // ---------------------------------------------------------------------------
 
+app.use(buildCors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(assignRequestId);
@@ -751,6 +733,9 @@ app.get('/api/stock-sources', async (_req, res) => {
     res.status(error?.status || 500).json({ message: 'Unable to load stock source catalog.' });
   }
 });
+
+app.use('/api/orders', ordersRouter);
+app.use('/api/stockinfo', stockinfoRouter);
 
 // ---------------------------------------------------------------------------
 // Admin router with RBAC + auditing
@@ -1774,7 +1759,7 @@ app.use((err, req, res, _next) => {
 const serverInstance = app.listen(port, () => {
   console.log(`✅ BFF Server is running on http://localhost:${port}`);
   console.log(`🔒 Environment: ${NODE_ENV}`);
-  console.log(`📡 CORS allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
+  console.log(`📡 CORS allowed origins: ${allowedOrigins.join(', ')}`);
   console.log(`📝 Audit log: ${AUDIT_LOG_PATH}`);
 });
 
