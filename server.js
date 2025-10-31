@@ -720,6 +720,8 @@ app.delete('/api/auth/session', requireAuth, (req, res) => {
 // Get active stock sources (public endpoint for all users)
 app.get('/api/stock-sources', async (_req, res) => {
   try {
+    const supabaseAdmin = ensureSupabaseAdminClient();
+
     const { data: sources, error } = await supabaseAdmin
       .from('stock_sources')
       .select('*')
@@ -745,7 +747,7 @@ app.get('/api/stock-sources', async (_req, res) => {
     res.json({ sites });
   } catch (error) {
     console.error('Failed to load stock sources', error);
-    res.status(500).json({ message: 'Unable to load stock source catalog.' });
+    res.status(error?.status || 500).json({ message: 'Unable to load stock source catalog.' });
   }
 });
 
