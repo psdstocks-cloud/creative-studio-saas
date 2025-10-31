@@ -2,6 +2,20 @@ import { extractAccessToken, type SupabaseEnv, type User } from '../../_lib/supa
 
 interface SessionEnv extends SupabaseEnv {}
 
+const ALLOWED_ORIGINS = [
+  'https://creative-studio-saas.pages.dev',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+const getValidOrigin = (request: Request): string => {
+  const requestOrigin = request.headers.get('origin') || request.headers.get('Origin');
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return ALLOWED_ORIGINS[0];
+};
+
 const buildCorsHeaders = (origin: string) => {
   const headers = new Headers();
   headers.set('Access-Control-Allow-Origin', origin);
@@ -93,33 +107,25 @@ export const onRequest = async ({
   console.log('  - Method:', request.method);
   console.log('  - URL:', url.toString());
 
-  const authHeader = request.headers.get('authorization');
-  const cookieHeader = request.headers.get('cookie');
-
-  console.log('  - Auth Header:', authHeader ? `${authHeader.substring(0, 40)}...` : 'MISSING');
-  console.log('  - Cookie Header:', cookieHeader ? `${cookieHeader.substring(0, 80)}...` : 'MISSING');
-  console.log('  - All Headers:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
+  const origin = getValidOrigin(request);
 
   if (request.method === 'OPTIONS') {
-    const headers = buildCorsHeaders(url.origin);
+    const headers = buildCorsHeaders(origin);
     headers.set('Access-Control-Allow-Methods', 'GET,OPTIONS');
-    headers.set('Access-Control-Allow-Headers', request.headers.get('Access-Control-Request-Headers') || '*');
+    headers.set('Access-Control-Allow-Headers', request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization, X-Request-ID');
     return new Response(null, { status: 204, headers });
   }
 
   if (request.method !== 'GET') {
-    return buildJsonResponse(url.origin, 405, { message: 'Method Not Allowed' });
+    return buildJsonResponse(origin, 405, { message: 'Method Not Allowed' });
   }
 
   // Try to validate Supabase session
   try {
     const accessToken = extractAccessToken(request);
 
-    console.log('  - Extracted Token:', accessToken ? `${accessToken.substring(0, 30)}...` : 'NULL');
-
     if (!accessToken) {
-      console.log('  ❌ No access token found - user is not authenticated');
-      return buildJsonResponse(url.origin, 200, { user: null });
+      return buildJsonResponse(origin, 200, { user: null });
     }
 
     // Validate the access token with Supabase
@@ -129,7 +135,7 @@ export const onRequest = async ({
 
     if (!supabaseUrl) {
       console.error('Supabase URL is not configured');
-      return buildJsonResponse(url.origin, 200, { user: null });
+      return buildJsonResponse(origin, 200, { user: null });
     }
 
     const authUserUrl = buildAuthUserUrl(supabaseUrl);
@@ -137,7 +143,7 @@ export const onRequest = async ({
 
     if (!apiKey) {
       console.error('Supabase API key is not configured');
-      return buildJsonResponse(url.origin, 200, { user: null });
+      return buildJsonResponse(origin, 200, { user: null });
     }
 
     const response = await fetch(authUserUrl, {
@@ -149,29 +155,21 @@ export const onRequest = async ({
 
     if (!response.ok) {
       // Invalid or expired token
-      console.log('  ❌ Token validation failed with Supabase, status:', response.status);
-      return buildJsonResponse(url.origin, 200, { user: null });
+      return buildJsonResponse(origin, 200, { user: null });
     }
 
     const userData = await response.json();
     const user = userData as User;
 
     if (!user || !user.id) {
-      console.log('  ❌ No user data returned from Supabase');
-      return buildJsonResponse(url.origin, 200, { user: null });
+      return buildJsonResponse(origin, 200, { user: null });
     }
 
     // Extract roles from user metadata
     const roles = extractRolesFromUser(user);
 
-    console.log('  ✅ User authenticated successfully:', {
-      userId: user.id,
-      email: user.email,
-      roles
-    });
-
     // Return user session in the format expected by the frontend
-    return buildJsonResponse(url.origin, 200, {
+    return buildJsonResponse(origin, 200, {
       user: {
         id: user.id,
         email: user.email || '',
@@ -182,6 +180,6 @@ export const onRequest = async ({
   } catch (error) {
     console.error('Session validation error:', error);
     // Return null user on any error to avoid blocking the frontend
-    return buildJsonResponse(url.origin, 200, { user: null });
+    return buildJsonResponse(origin, 200, { user: null });
   }
 };

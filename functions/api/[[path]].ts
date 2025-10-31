@@ -53,20 +53,38 @@ const cloneRequestBody = async (request: Request) => {
   return await request.text();
 };
 
-const createCorsHeaders = (requestUrl: URL) => {
+const ALLOWED_ORIGINS = [
+  'https://creative-studio-saas.pages.dev',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+const getValidOrigin = (request: Request): string => {
+  const requestOrigin = request.headers.get('origin') || request.headers.get('Origin');
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return ALLOWED_ORIGINS[0];
+};
+
+const createCorsHeaders = (request: Request) => {
+  const origin = getValidOrigin(request);
   const corsHeaders = new Headers();
-  corsHeaders.set('Access-Control-Allow-Origin', requestUrl.origin);
+  corsHeaders.set('Access-Control-Allow-Origin', origin);
   corsHeaders.set('Access-Control-Allow-Credentials', 'true');
   corsHeaders.set('Vary', 'Origin');
   return corsHeaders;
 };
 
-const createErrorResponse = (url: URL, status: number, message: string) => {
+const createErrorResponse = (request: Request, status: number, message: string) => {
+  const origin = getValidOrigin(request);
   return new Response(JSON.stringify({ message }), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': url.origin,
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Credentials': 'true',
+      'Vary': 'Origin',
     },
   });
 };
@@ -76,9 +94,9 @@ export const onRequest = async (context: FunctionContext) => {
   const url = new URL(request.url);
 
   if (request.method === 'OPTIONS') {
-    const corsHeaders = createCorsHeaders(url);
+    const corsHeaders = createCorsHeaders(request);
     corsHeaders.set('Access-Control-Allow-Methods', 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS');
-    corsHeaders.set('Access-Control-Allow-Headers', request.headers.get('Access-Control-Request-Headers') || '*');
+    corsHeaders.set('Access-Control-Allow-Headers', request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization, X-Request-ID');
 
     return new Response(null, {
       status: 204,
@@ -88,7 +106,7 @@ export const onRequest = async (context: FunctionContext) => {
 
   const apiKey = env.STOCK_API_KEY;
   if (!apiKey) {
-    return createErrorResponse(url, 500, 'Server configuration error: STOCK_API_KEY is not set.');
+    return createErrorResponse(request, 500, 'Server configuration error: STOCK_API_KEY is not set.');
   }
 
   const upstreamBaseUrl = env.STOCK_API_BASE_URL || DEFAULT_BASE_URL;
@@ -110,7 +128,7 @@ export const onRequest = async (context: FunctionContext) => {
     body = await cloneRequestBody(request);
   } catch (error) {
     console.error('Error cloning request body', error);
-    return createErrorResponse(url, 500, 'Failed to process request body.');
+    return createErrorResponse(request, 500, 'Failed to process request body.');
   }
 
   let upstreamResponse: Response;
@@ -123,10 +141,10 @@ export const onRequest = async (context: FunctionContext) => {
     });
   } catch (error) {
     console.error('Error proxying request to upstream API', error);
-    return createErrorResponse(url, 502, 'Upstream API request failed.');
+    return createErrorResponse(request, 502, 'Upstream API request failed.');
   }
 
-  const responseHeaders = createCorsHeaders(url);
+  const responseHeaders = createCorsHeaders(request);
   upstreamResponse.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (lower === 'content-length') {
