@@ -117,27 +117,29 @@ const Pricing: React.FC = () => {
   const loadingState = useMemo(() => isLoading && !plans.length, [isLoading, plans.length]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-16 text-white">
+    <div className="mx-auto max-w-6xl px-4 py-16 text-gray-800 dark:text-white transition-colors">
       <section className="text-center mb-12">
-        <h1 className="text-4xl font-bold">Choose the plan that fuels your creativity</h1>
-        <p className="mt-4 text-gray-400">
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-white transition-colors">
+          Choose the plan that fuels your creativity
+        </h1>
+        <p className="mt-4 text-gray-600 dark:text-gray-400 transition-colors">
           Monthly subscriptions that credit your account with fresh points for AI generations and
           stock downloads.
         </p>
       </section>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+        <div className="mb-6 rounded-lg border border-red-400/40 dark:border-red-500/40 bg-red-400/10 dark:bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-200 transition-colors">
           {error}
         </div>
       )}
 
       {authRequired && !isAuthenticated && (
-        <div className="mb-8 rounded-lg border border-blue-500/40 bg-blue-500/10 p-4 text-sm text-blue-200">
+        <div className="mb-8 rounded-lg border border-blue-400/40 dark:border-blue-500/40 bg-blue-400/10 dark:bg-blue-500/10 p-4 text-sm text-blue-700 dark:text-blue-200 transition-colors">
           Sign in to view live pricing and subscribe.
           <button
             onClick={() => setAuthModalOpen(true)}
-            className="ml-3 rounded border border-blue-400 px-3 py-1 text-xs font-semibold text-blue-200 hover:bg-blue-500/20"
+            className="ml-3 rounded border border-blue-500 dark:border-blue-400 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-200 hover:bg-blue-500/20 transition-colors"
           >
             Sign in
           </button>
@@ -155,7 +157,11 @@ const Pricing: React.FC = () => {
         ))}
       </div>
 
-      {loadingState && <div className="mt-8 text-center text-gray-400">Loading plans...</div>}
+      {loadingState && (
+        <div className="mt-8 text-center text-gray-600 dark:text-gray-400 transition-colors">
+          Loading plans...
+        </div>
+      )}
 
       <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </div>
