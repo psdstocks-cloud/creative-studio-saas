@@ -7,6 +7,7 @@ import AiGenerator from './components/AiGenerator';
 import ApiDocumentation from './components/ApiDocumentation';
 import LandingPage from './components/LandingPage';
 import Footer from './components/Footer';
+import DownloadsDock from './components/downloads/DownloadsDock';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
 
@@ -45,6 +46,7 @@ const App = () => {
           </Routes>
         </main>
         <Footer />
+        <DownloadsDock />
       </div>
     </div>
   );
