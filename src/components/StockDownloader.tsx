@@ -411,16 +411,16 @@ const StockDownloader = () => {
 
   const renderSingleMode = () => (
     <>
-      <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+      <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-xl shadow-lg p-8 border border-gray-200 dark:border-slate-700">
         <form onSubmit={handleGetInfo}>
           <label
             htmlFor="stock-url"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            className="block text-sm font-medium text-theme-text-primary mb-2"
           >
             {t('stockUrlLabel')}
           </label>
           <div className="flex">
-            <span className="inline-flex items-center px-3 rounded-s-md border border-e-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+            <span className="inline-flex items-center px-3 rounded-s-md border border-e-0 border-theme-border bg-gray-50 dark:bg-slate-700 text-theme-text-secondary">
               <LinkIcon />
             </span>
             <input
@@ -429,7 +429,7 @@ const StockDownloader = () => {
               value={url}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
               placeholder={t('stockUrlPlaceholder')}
-              className="flex-1 block w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-e-lg focus:ring-blue-500 focus:border-blue-500"
+              className="flex-1 block w-full p-3 bg-white dark:bg-slate-700 border border-theme-border rounded-e-lg focus:ring-blue-500 focus:border-blue-500 text-theme-text-primary placeholder:text-theme-text-muted"
               required
               disabled={state === 'fetching' || state === 'ordering'}
             />
@@ -575,11 +575,11 @@ const StockDownloader = () => {
 
   const renderBatchMode = () => (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-8 border border-gray-200 dark:border-slate-700">
         <form onSubmit={handleGetBatchInfo}>
           <label
             htmlFor="batch-urls"
-            className={`block text-sm font-medium mb-2 ${hasUrlCountError ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}
+            className={`block text-sm font-medium mb-2 ${hasUrlCountError ? 'text-red-500' : 'text-theme-text-primary'}`}
           >
             {t('batchUrlLabel')}
           </label>
@@ -589,7 +589,7 @@ const StockDownloader = () => {
             onChange={(e) => setBatchUrls(e.target.value)}
             placeholder={t('batchUrlPlaceholder')}
             rows={5}
-            className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-y"
+            className="w-full p-3 bg-white dark:bg-slate-700 border border-theme-border rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-y text-theme-text-primary placeholder:text-theme-text-muted"
             disabled={isFetchingBatch || isOrderingBatch}
           />
           <div className="text-right text-sm text-gray-500 mt-1">
@@ -617,7 +617,7 @@ const StockDownloader = () => {
             {batchFileInfos.map((info) => (
               <div
                 key={info.id}
-                className={`relative rounded-xl border-2 p-3 transition-all ${selectedFileIds.has(info.id) ? 'border-blue-500' : 'border-transparent'} ${info.status === 'success' ? 'bg-gray-800' : 'bg-red-900/50'}`}
+                className={`relative rounded-xl border-2 p-3 transition-all ${selectedFileIds.has(info.id) ? 'border-blue-500' : 'border-gray-200 dark:border-transparent'} ${info.status === 'success' ? 'bg-white dark:bg-slate-800' : 'bg-red-50 dark:bg-red-900/50'}`}
               >
                 {info.status === 'success' && (
                   <label htmlFor={`checkbox-${info.id}`} className="absolute top-2 end-2 z-10">
@@ -714,18 +714,18 @@ const StockDownloader = () => {
 
   return (
     <div className="animate-fadeIn">
-      <h1 className="text-3xl font-bold text-center mb-6">{t('stockDownloaderTitle')}</h1>
+      <h1 className="text-3xl font-bold text-center mb-6 text-theme-text-primary">{t('stockDownloaderTitle')}</h1>
 
-      <div className="flex justify-center mb-6 bg-gray-800 p-1 rounded-lg max-w-xs mx-auto">
+      <div className="flex justify-center mb-6 bg-white dark:bg-slate-800 p-1 rounded-lg max-w-xs mx-auto border border-gray-200 dark:border-slate-700">
         <button
           onClick={() => setMode('single')}
-          className={`w-full px-4 py-2 text-sm font-semibold rounded-md transition-colors ${mode === 'single' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}
+          className={`w-full px-4 py-2 text-sm font-semibold rounded-md transition-colors ${mode === 'single' ? 'bg-blue-600 text-white' : 'text-theme-text-secondary hover:bg-gray-100 dark:hover:bg-slate-700'}`}
         >
           {t('singleUrl')}
         </button>
         <button
           onClick={() => setMode('batch')}
-          className={`w-full px-4 py-2 text-sm font-semibold rounded-md transition-colors ${mode === 'batch' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}
+          className={`w-full px-4 py-2 text-sm font-semibold rounded-md transition-colors ${mode === 'batch' ? 'bg-blue-600 text-white' : 'text-theme-text-secondary hover:bg-gray-100 dark:hover:bg-slate-700'}`}
         >
           {t('batchMode')}
         </button>
