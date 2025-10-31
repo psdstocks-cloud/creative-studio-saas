@@ -9,6 +9,13 @@
   --primary-rgb: 59, 130, 246; /* blue-500 */
   --secondary-rgb: 100, 116, 139; /* slate-500 */
   --accent-rgb: 147, 51, 234; /* purple-600 */
+
+  /* Additional light mode theme variables */
+  --text-primary: 31, 41, 55; /* gray-800 */
+  --text-secondary: 107, 114, 128; /* gray-500 */
+  --bg-primary: 255, 255, 255; /* white */
+  --bg-secondary: 249, 250, 251; /* gray-50 */
+  --border-color: 229, 231, 235; /* gray-200 */
 }
 
 .dark {
@@ -17,10 +24,17 @@
   --background-end-rgb: 15, 23, 42; /* slate-900 */
   --glass-bg-rgb: 255, 255, 255; /* white for contrast in dark mode */
 
-  /* Common theme variables (can be adjusted for dark mode) */
+  /* Common theme variables (adjusted for dark mode) */
   --primary-rgb: 96, 165, 250; /* blue-400 (lighter for dark mode) */
   --secondary-rgb: 148, 163, 184; /* slate-400 */
   --accent-rgb: 167, 139, 250; /* purple-400 */
+
+  /* Additional dark mode theme variables */
+  --text-primary: 229, 231, 235; /* gray-200 */
+  --text-secondary: 156, 163, 175; /* gray-400 */
+  --bg-primary: 17, 24, 39; /* gray-900 */
+  --bg-secondary: 31, 41, 55; /* gray-800 */
+  --border-color: 55, 65, 81; /* gray-700 */
 }
 
 /* Gradient Background */
@@ -40,6 +54,41 @@
   border: 1px solid rgba(var(--glass-bg-rgb), 0.15);
 }
 
+/* Theme-aware text colors */
+.text-theme-primary {
+  color: rgb(var(--text-primary));
+}
+
+.text-theme-secondary {
+  color: rgb(var(--text-secondary));
+}
+
+/* Theme-aware background colors */
+.bg-theme-primary {
+  background-color: rgb(var(--bg-primary));
+}
+
+.bg-theme-secondary {
+  background-color: rgb(var(--bg-secondary));
+}
+
+/* Theme Toggle 3D Styles */
+.theme-toggle-3d {
+  position: relative;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  outline: none;
+  transition: transform 0.2s ease;
+}
+
+.theme-toggle-3d:focus-visible {
+  outline: 2px solid rgb(var(--primary-rgb));
+  outline-offset: 4px;
+  border-radius: 9999px;
+}
+
 /* Keyframe Animations */
 @keyframes fadeIn {
   from {
@@ -54,6 +103,21 @@
 
 .animate-fadeIn {
   animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slideIn {
+  animation: slideInFromLeft 0.6s ease-out forwards;
 }
 
 /* Basic spin animation for loading icons */
