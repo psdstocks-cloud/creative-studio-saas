@@ -6,10 +6,44 @@ const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
+/**
+ * Normalizes the configured base URL so requests always target the Express
+ * `/api` routes even when the environment value omits the path (for example
+ * `https://my-app.up.railway.app`).
+ */
+const ensureApiPath = (baseUrl: string) => {
+  const trimmed = trimTrailingSlash(baseUrl);
+
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const normalizedPath = trimTrailingSlash(parsed.pathname || '');
+
+    if (!normalizedPath) {
+      return `${trimmed}${API_BASE_PATH}`;
+    }
+
+    if (normalizedPath === API_BASE_PATH || normalizedPath.endsWith(`${API_BASE_PATH}`)) {
+      return trimmed;
+    }
+
+    return trimmed;
+  } catch {
+    if (!trimmed.endsWith(API_BASE_PATH)) {
+      return `${trimmed}${API_BASE_PATH}`;
+    }
+
+    return trimmed;
+  }
+};
+
 const getApiBaseUrl = () => {
   const envBaseUrl = import.meta.env.VITE_API_BASE_URL;
   if (envBaseUrl) {
-    return trimTrailingSlash(envBaseUrl);
+    return ensureApiPath(envBaseUrl);
   }
 
   if (typeof window !== 'undefined' && window.location?.origin) {
