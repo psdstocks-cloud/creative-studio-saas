@@ -185,20 +185,10 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
         throw new Error('You must be signed in to perform this action.');
       }
 
-      // Debug logging for authentication
-      console.log('🔐 Auth Debug Info:');
-      console.log('  - Token length:', accessToken.length);
-      console.log('  - Token prefix:', accessToken.substring(0, 30) + '...');
-      console.log('  - Session user:', sessionData.session?.user?.id);
-      console.log('  - Request URL:', config.url);
-
       config.headers = {
         ...config.headers,
         Authorization: `Bearer ${accessToken}`,
       };
-
-      // Verify headers being sent
-      console.log('  - Headers:', JSON.stringify(config.headers, null, 2));
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(error.message || 'Unable to authenticate request.');

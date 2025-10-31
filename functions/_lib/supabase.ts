@@ -513,22 +513,15 @@ export const getServiceSupabaseClient = (
 };
 
 export const extractAccessToken = (request: Request): string | null => {
-  console.log('🔑 extractAccessToken: Starting token extraction');
-
   const authHeader = request.headers.get('authorization');
-  console.log('  - Authorization header:', authHeader ? `${authHeader.substring(0, 40)}...` : 'not present');
 
   if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
     const token = authHeader.slice(7).trim();
-    console.log('  ✅ Token found in Authorization header');
     return token;
   }
 
   const cookieHeader = request.headers.get('cookie');
-  console.log('  - Cookie header:', cookieHeader ? `${cookieHeader.substring(0, 80)}...` : 'not present');
-
   const cookies = parseCookieHeader(cookieHeader);
-  console.log('  - Parsed cookie names:', Object.keys(cookies).join(', ') || 'none');
 
   for (const [name, value] of Object.entries(cookies)) {
     const normalizedName = name.trim().toLowerCase();
@@ -541,17 +534,14 @@ export const extractAccessToken = (request: Request): string | null => {
       normalizedName === 'supabase-auth-token' ||
       normalizedName === 'sb:token'
     ) {
-      console.log(`  ✅ Token found in cookie: ${name}`);
       return value;
     }
 
     if (SUPABASE_ACCESS_COOKIE_PATTERNS.some((pattern) => pattern.test(normalizedName))) {
-      console.log(`  ✅ Token found in cookie (pattern match): ${name}`);
       return value;
     }
   }
 
-  console.log('  ❌ No token found in Authorization header or cookies');
   return null;
 };
 
