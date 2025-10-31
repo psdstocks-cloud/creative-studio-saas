@@ -11,6 +11,24 @@
     <meta name="revisit-after" content="1 days" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <title>Creative Studio SaaS</title>
+<script>
+// Anti-FOUC (Flash of Unstyled Content) script - runs before page render
+(function() {
+  try {
+    const storedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = storedTheme || (prefersDark ? 'dark' : 'light');
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  } catch (e) {
+    // Fallback to system preference or light mode
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.classList.add('dark');
+    }
+  }
+})();
+</script>
 <style>
 .gradient-bg {
   background: linear-gradient(-45deg, #101727, #152951, #3b2b64, #23a6d5);
