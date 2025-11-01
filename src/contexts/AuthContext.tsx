@@ -483,7 +483,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
         if (session?.user) {
           // FAST PATH: Use JWT data immediately
-          console.log('AuthProvider: Initializing with JWT data (fast path)');
           const fallback = buildFallbackUser(session.user);
           const hydratedFallback = await synchronizeBffSession(fallback);
           if (mounted) {
@@ -492,13 +491,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           }
 
           // Fetch profile in background
-          console.log('AuthProvider: Fetching profile in background');
           getAppUserFromSession(session)
             .then(async (appUser) => {
               if (mounted && appUser) {
                 const hydratedUser = await synchronizeBffSession(appUser);
                 setUser(hydratedUser);
-                console.log('AuthProvider: Profile updated with balance');
               }
             })
             .catch((profileError) => {
@@ -677,8 +674,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       } catch (e) {
         console.warn('Failed to clear localStorage during sign out', e);
       }
-      
-      console.log('Sign out completed successfully');
     } catch (error: any) {
       console.error('Unexpected error during sign out', error);
       setUser(null);

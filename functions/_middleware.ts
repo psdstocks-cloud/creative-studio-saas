@@ -16,16 +16,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export const onRequest = async ({ request, next }: { request: Request; next: () => Promise<Response> }) => {
-  const authHeader = request.headers.get('authorization');
-  const cookieHeader = request.headers.get('cookie');
   const url = new URL(request.url);
-
-  console.log('🚦 Middleware - Incoming Request:', {
-    url: url.pathname,
-    method: request.method,
-    hasAuth: !!authHeader,
-    hasCookie: !!cookieHeader,
-  });
 
   const initialResponse = await next();
 

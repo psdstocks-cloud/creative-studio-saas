@@ -36,7 +36,7 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
       throw new Error(error.message || 'Failed to lookup order.');
     }
 
-    return jsonResponse(request, 200, { order: data && data.length > 0 ? data[0] : null });
+    return jsonResponse(request, 200, { existing: data && data.length > 0 ? data[0] : null });
   } catch (error: any) {
     const message = error?.message || 'Unable to lookup order.';
     const status = /access token/i.test(message) ? 401 : 500;

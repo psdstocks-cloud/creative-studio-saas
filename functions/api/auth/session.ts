@@ -102,11 +102,6 @@ export const onRequest = async ({
 }) => {
   const url = new URL(request.url);
 
-  // Debug logging - Log all incoming headers
-  console.log('🔍 Session Endpoint Debug:');
-  console.log('  - Method:', request.method);
-  console.log('  - URL:', url.toString());
-
   const origin = getValidOrigin(request);
 
   if (request.method === 'OPTIONS') {

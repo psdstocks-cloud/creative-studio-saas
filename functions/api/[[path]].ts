@@ -110,12 +110,6 @@ export const onRequest = async (context: FunctionContext) => {
   }
 
   const apiKey = env.STOCK_API_KEY || env.STOCK_API;
-  const hasApiKey = Boolean(apiKey);
-
-  console.log('Proxy request', {
-    path: url.pathname,
-    hasKey: hasApiKey,
-  });
 
   if (requiresApiKey(url.pathname) && !apiKey) {
     console.error('Missing STOCK_API_KEY for protected request', {
