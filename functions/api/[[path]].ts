@@ -31,6 +31,10 @@ const addApiKeyHeader = (headers: Headers, apiKey: string) => {
   headers.set('X-Api-Key', apiKey);
 };
 
+const requiresApiKey = (pathname: string) => {
+  return /\/stockinfo\//i.test(pathname);
+};
+
 const cloneRequestBody = async (request: Request) => {
   const method = request.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD') {
@@ -105,8 +109,8 @@ export const onRequest = async (context: FunctionContext) => {
   }
 
   const apiKey = env.STOCK_API_KEY;
-  if (!apiKey) {
-    return createErrorResponse(request, 500, 'Server configuration error: STOCK_API_KEY is not set.');
+  if (requiresApiKey(url.pathname) && !apiKey) {
+    return createErrorResponse(request, 500, 'Server misconfiguration: STOCK_API_KEY is missing.');
   }
 
   const upstreamBaseUrl = env.STOCK_API_BASE_URL || DEFAULT_BASE_URL;
@@ -121,7 +125,9 @@ export const onRequest = async (context: FunctionContext) => {
     headers.set(key, value);
   });
 
-  addApiKeyHeader(headers, apiKey);
+  if (apiKey) {
+    addApiKeyHeader(headers, apiKey);
+  }
 
   let body: BodyInit | null | undefined = null;
   try {
