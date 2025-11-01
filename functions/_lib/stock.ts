@@ -52,9 +52,9 @@ const normalizeCost = (record: any) => {
 };
 
 export const fetchStockMetadata = async (env: StockEnv, site: string, id: string) => {
-  const apiKey = env.STOCK_API_KEY;
+  const apiKey = env.STOCK_API_KEY || (env as any).NEHTW_API_KEY;
   if (!apiKey) {
-    throw new Error('Server configuration error: STOCK_API_KEY is missing.');
+    throw new Error('Server configuration error: STOCK_API_KEY or NEHTW_API_KEY is missing.');
   }
 
   const baseUrl = env.STOCK_API_BASE_URL || DEFAULT_STOCK_API_BASE_URL;
