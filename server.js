@@ -1697,27 +1697,28 @@ app.use('/api', async (req, res, next) => {
       body,
     });
 
-    const responseText = await upstreamResponse.text();
-
-    // Copy upstream headers, but exclude CORS headers to prevent conflicts
+    // Copy upstream headers, but exclude CORS and encoding headers to prevent conflicts
     // Our CORS middleware at the top of the file handles CORS properly
-    const corsHeaders = new Set([
+    // Exclude encoding headers to prevent ERR_CONTENT_DECODING_FAILED
+    const excludedHeaders = new Set([
       'access-control-allow-origin',
       'access-control-allow-credentials',
       'access-control-allow-methods',
       'access-control-allow-headers',
       'access-control-expose-headers',
       'access-control-max-age',
+      'content-length',
+      'content-encoding',
+      'transfer-encoding',
     ]);
 
     upstreamResponse.headers.forEach((value, key) => {
-      const lowerKey = key.toLowerCase();
-      // Skip content-length and CORS headers
-      if (lowerKey === 'content-length' || corsHeaders.has(lowerKey)) {
-        return;
+      if (key && !excludedHeaders.has(key.toLowerCase())) {
+        res.setHeader(key, value);
       }
-      res.setHeader(key, value);
     });
+
+    res.status(upstreamResponse.status);
 
     const shouldAudit = req.user && method && method.toUpperCase() !== 'GET';
 
@@ -1740,7 +1741,14 @@ app.use('/api', async (req, res, next) => {
       });
     }
 
-    res.status(upstreamResponse.status).send(responseText);
+    // Stream the response to avoid content decoding issues
+    if (!upstreamResponse.body) {
+      res.end();
+      return;
+    }
+
+    const readable = Readable.fromWeb(upstreamResponse.body);
+    readable.pipe(res);
   } catch (error) {
     console.error('Error proxying API request:', error);
     res.status(502).json({ message: 'Upstream API request failed.' });
