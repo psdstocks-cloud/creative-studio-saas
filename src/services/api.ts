@@ -176,13 +176,20 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
   if (auth) {
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
       if (sessionError) {
-        throw sessionError;
+        const normalizedError = new Error(
+          sessionError.message || 'Unable to authenticate request.'
+        );
+        (normalizedError as Error & { status?: number }).status = 401;
+        throw normalizedError;
       }
 
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) {
-        throw new Error('You must be signed in to perform this action.');
+        const authError = new Error('You must be signed in to perform this action.');
+        (authError as Error & { status?: number }).status = 401;
+        throw authError;
       }
 
       config.headers = {
@@ -190,10 +197,18 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
         Authorization: `Bearer ${accessToken}`,
       };
     } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(error.message || 'Unable to authenticate request.');
+      const normalizedError =
+        error instanceof Error ? error : new Error('Unable to authenticate request.');
+
+      if (typeof (normalizedError as { status?: number }).status !== 'number') {
+        (normalizedError as { status?: number }).status = 401;
       }
-      throw new Error('Unable to authenticate request.');
+
+      if (!normalizedError.message) {
+        normalizedError.message = 'Unable to authenticate request.';
+      }
+
+      throw normalizedError;
     }
   }
 

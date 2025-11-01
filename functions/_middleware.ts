@@ -16,26 +16,45 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export const onRequest = async ({ request, next }: { request: Request; next: () => Promise<Response> }) => {
-  // Log incoming request details for debugging
   const authHeader = request.headers.get('authorization');
   const cookieHeader = request.headers.get('cookie');
+  const url = new URL(request.url);
+
   console.log('🚦 Middleware - Incoming Request:', {
-    url: new URL(request.url).pathname,
+    url: url.pathname,
     method: request.method,
     hasAuth: !!authHeader,
     hasCookie: !!cookieHeader,
   });
 
-  const response = await next();
-  const headers = new Headers(response.headers);
+  const initialResponse = await next();
+
+  const accept = request.headers.get('accept') || '';
+  const isApi = url.pathname.startsWith('/api');
+  const isAsset =
+    url.pathname.startsWith('/assets') ||
+    /\.(js|css|png|jpe?g|webp|svg|ico|map|txt|json|xml|webmanifest)$/i.test(url.pathname);
+
+  let finalResponse = initialResponse;
+
+  if (!isApi && !isAsset && initialResponse.status === 404 && accept.includes('text/html')) {
+    const indexRequest = new Request(new URL('/index.html', url), request);
+    const indexResponse = await fetch(indexRequest);
+    finalResponse = new Response(indexResponse.body, {
+      status: 200,
+      headers: indexResponse.headers,
+    });
+  }
+
+  const headers = new Headers(finalResponse.headers);
 
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     headers.set(key, value);
   }
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
+  return new Response(finalResponse.body, {
+    status: finalResponse.status,
+    statusText: finalResponse.statusText,
     headers,
   });
 };
