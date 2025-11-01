@@ -3,6 +3,7 @@ const DEFAULT_BASE_URL = 'https://nehtw.com/api';
 type EnvBindings = {
   STOCK_API_KEY?: string;
   STOCK_API_BASE_URL?: string;
+  STOCK_API?: string;
 };
 
 type FunctionContext = {
@@ -108,9 +109,13 @@ export const onRequest = async (context: FunctionContext) => {
     });
   }
 
-  const apiKey = env.STOCK_API_KEY;
+  const apiKey = env.STOCK_API_KEY || env.STOCK_API;
   if (requiresApiKey(url.pathname) && !apiKey) {
-    return createErrorResponse(request, 500, 'Server misconfiguration: STOCK_API_KEY is missing.');
+    return createErrorResponse(
+      request,
+      500,
+      'Server misconfiguration: STOCK_API_KEY is missing (STOCK_API is supported as a legacy alias).'
+    );
   }
 
   const upstreamBaseUrl = env.STOCK_API_BASE_URL || DEFAULT_BASE_URL;

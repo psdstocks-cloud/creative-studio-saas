@@ -26,7 +26,7 @@ app.disable('x-powered-by');
 // ---------------------------------------------------------------------------
 
 const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || 'https://nehtw.com/api';
-const STOCK_API_KEY = process.env.STOCK_API_KEY;
+const STOCK_API_KEY = process.env.STOCK_API_KEY || process.env.STOCK_API;
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'css_bff_session';
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 8); // 8 hours by default
 const SESSION_REFRESH_THRESHOLD_MS = Number(process.env.SESSION_REFRESH_THRESHOLD_MS || 1000 * 60 * 30); // 30 minutes
