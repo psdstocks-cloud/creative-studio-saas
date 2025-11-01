@@ -5,6 +5,32 @@ const API_BASE_PATH = '/api';
 const ABSOLUTE_URL_REGEX = /^https?:\/\//i;
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+const ensureLeadingSlash = (value: string) => (value.startsWith('/') ? value : `/${value}`);
+
+const warnAboutNonApiPath = (endpoint: string) => {
+  console.warn(
+    `[apiFetch] Received non-API path "${endpoint}". Automatically prefixing with "${API_BASE_PATH}".`,
+  );
+};
+
+const ensureApiEndpoint = (endpoint: string) => {
+  const trimmed = endpoint.trim();
+  const normalized = ensureLeadingSlash(trimmed);
+
+  if (normalized === API_BASE_PATH || normalized.startsWith(`${API_BASE_PATH}/`)) {
+    return normalized;
+  }
+
+  if (normalized !== API_BASE_PATH) {
+    warnAboutNonApiPath(endpoint);
+  }
+
+  if (normalized === '/') {
+    return API_BASE_PATH;
+  }
+
+  return `${API_BASE_PATH}${normalized}`;
+};
 
 /**
  * Normalizes the configured base URL so requests always target the Express
@@ -55,22 +81,28 @@ const getApiBaseUrl = () => {
 
 const resolveEndpoint = (endpoint: string) => {
   if (ABSOLUTE_URL_REGEX.test(endpoint)) {
+    try {
+      const parsed = new URL(endpoint);
+      if (!parsed.pathname.startsWith(API_BASE_PATH)) {
+        warnAboutNonApiPath(parsed.pathname || endpoint);
+      }
+    } catch {
+      warnAboutNonApiPath(endpoint);
+    }
     return endpoint;
   }
 
-  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const apiPath = ensureApiEndpoint(endpoint);
   const baseApiUrl = getApiBaseUrl();
 
   if (baseApiUrl === API_BASE_PATH) {
-    return normalizedEndpoint.startsWith(API_BASE_PATH)
-      ? normalizedEndpoint
-      : `${API_BASE_PATH}${normalizedEndpoint}`;
+    return apiPath;
   }
 
-  let path = normalizedEndpoint;
+  let path = apiPath;
 
-  if (baseApiUrl.endsWith(API_BASE_PATH) && normalizedEndpoint.startsWith(API_BASE_PATH)) {
-    path = normalizedEndpoint.slice(API_BASE_PATH.length) || '/';
+  if (baseApiUrl.endsWith(API_BASE_PATH) && apiPath.startsWith(API_BASE_PATH)) {
+    path = apiPath.slice(API_BASE_PATH.length) || '/';
     if (!path.startsWith('/')) {
       path = `/${path}`;
     }
