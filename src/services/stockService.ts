@@ -10,32 +10,72 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   const { site, id } = parseStockUrl(url);
   logger.debug('Parsing stock URL', { url, site, id });
 
-  const responseData = await apiFetch(`/stockinfo/${site}/${id}`) as any;
-  logger.apiResponse(`/stockinfo/${site}/${id}`, responseData);
+  try {
+    const responseData = await apiFetch(`/stockinfo/${site}/${id}`) as any;
+    logger.apiResponse(`/stockinfo/${site}/${id}`, responseData);
 
-  // Check if response explicitly indicates failure
-  if (responseData?.success === false) {
-    const errorMessage = responseData?.message || 'Could not retrieve file details.';
-    logger.error('Stock API returned error', new Error(errorMessage), { url, site, id });
-    throw new Error(errorMessage);
-  }
-
-  // Check if data is an empty array (file unavailable)
-  if (Array.isArray(responseData?.data)) {
-    logger.debug('Stock API returned array', { length: responseData.data.length });
-
-    if (responseData.data.length === 0) {
-      throw new Error(
-        'This file is not available for download. It may have been removed or is not supported by the API.'
-      );
+    // Check if response explicitly indicates failure
+    if (responseData?.success === false) {
+      const errorMessage = responseData?.message || 'Could not retrieve file details.';
+      logger.error('Stock API returned error', new Error(errorMessage), { url, site, id });
+      throw new Error(errorMessage);
     }
 
-    // If data is a non-empty array, take the first item
-    const data = responseData.data[0];
+    // Check if data is an empty array (file unavailable)
+    if (Array.isArray(responseData?.data)) {
+      logger.debug('Stock API returned array', { length: responseData.data.length });
+
+      if (responseData.data.length === 0) {
+        throw new Error(
+          'This file is not available for download. It may have been removed or is not supported by the API.'
+        );
+      }
+
+      // If data is a non-empty array, take the first item
+      const data = responseData.data[0];
+
+      const costValue = data.cost ?? data.price;
+      const previewUrl = data.preview || data.thumb || data.thumb_lg || data.image;
+
+      if (!previewUrl || !data.id) {
+        throw new Error(
+          'Could not retrieve file details. The URL might be incorrect or the file is unavailable.'
+        );
+      }
+
+      const parsedCost = parseFloat(costValue);
+
+      return {
+        id: data.id,
+        site: data.site || site,
+        preview: previewUrl,
+        cost: !isNaN(parsedCost) ? parsedCost : null,
+        title: data.title || data.name,
+        name: data.name,
+        author: data.author,
+        ext: data.ext,
+        sizeInBytes: data.size,
+        debugid: data.debugid,
+      };
+    }
+
+    // Handle cases where data is nested inside a 'data' property (as an object)
+    const data = responseData?.data || responseData;
+
+    // Final validation - ensure data is an object with required fields
+    if (typeof data !== 'object' || data === null) {
+      logger.error('Invalid stock API response format', new Error('Data is not a valid object'), {
+        data,
+      });
+      throw new Error(
+        'The API returned an invalid response format. Please try again or contact support.'
+      );
+    }
 
     const costValue = data.cost ?? data.price;
     const previewUrl = data.preview || data.thumb || data.thumb_lg || data.image;
 
+    // Validate the response to prevent showing an empty modal.
     if (!previewUrl || !data.id) {
       throw new Error(
         'Could not retrieve file details. The URL might be incorrect or the file is unavailable.'
@@ -56,45 +96,31 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
       sizeInBytes: data.size,
       debugid: data.debugid,
     };
-  }
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error('Failed to fetch stock file info.');
+    const status = typeof err === 'object' && err !== null && 'status' in err ? (err as any).status : undefined;
+    const data = typeof err === 'object' && err !== null && 'data' in err ? (err as any).data : undefined;
 
-  // Handle cases where data is nested inside a 'data' property (as an object)
-  const data = responseData?.data || responseData;
+    console.error('Stock file info fetch failed', {
+      url,
+      site,
+      id,
+      status,
+      message: error.message,
+      data,
+      stack: error.stack,
+    });
 
-  // Final validation - ensure data is an object with required fields
-  if (typeof data !== 'object' || data === null) {
-    logger.error('Invalid stock API response format', new Error('Data is not a valid object'), {
+    logger.error('Stock file info fetch failed', error, {
+      url,
+      site,
+      id,
+      status,
       data,
     });
-    throw new Error(
-      'The API returned an invalid response format. Please try again or contact support.'
-    );
+
+    throw error;
   }
-
-  const costValue = data.cost ?? data.price;
-  const previewUrl = data.preview || data.thumb || data.thumb_lg || data.image;
-
-  // Validate the response to prevent showing an empty modal.
-  if (!previewUrl || !data.id) {
-    throw new Error(
-      'Could not retrieve file details. The URL might be incorrect or the file is unavailable.'
-    );
-  }
-
-  const parsedCost = parseFloat(costValue);
-
-  return {
-    id: data.id,
-    site: data.site || site,
-    preview: previewUrl,
-    cost: !isNaN(parsedCost) ? parsedCost : null,
-    title: data.title || data.name,
-    name: data.name,
-    author: data.author,
-    ext: data.ext,
-    sizeInBytes: data.size,
-    debugid: data.debugid,
-  };
 };
 
 /**
