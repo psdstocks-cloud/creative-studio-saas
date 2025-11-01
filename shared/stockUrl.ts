@@ -7,17 +7,17 @@ export interface ParsedStockUrl {
 
 const STOCK_URL_PARSERS: Array<{ site: string; regex: RegExp }> = [
   // Shutterstock (ordered from most to least specific)
-  { site: 'vshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?video\/clip-([0-9]+)/i },
-  { site: 'mshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)?music\/track-([0-9]+)/i },
+  { site: 'vshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)*video\/clip-([0-9]+)/i },
+  { site: 'mshutter', regex: /shutterstock\.com\/(?:[a-z-]+\/)*music\/track-([0-9]+)/i },
   {
     site: 'shutterstock',
     regex:
-      /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/.+?-([0-9]+)/i,
+      /shutterstock\.com\/(?:[a-z-]+\/)*(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/.+?-([0-9]+)/i,
   },
   {
     site: 'shutterstock',
     regex:
-      /shutterstock\.com\/(?:[a-z-]+\/)?(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/([0-9]+)/i,
+      /shutterstock\.com\/(?:[a-z-]+\/)*(?:image-vector|image-photo|image-illustration|image|image-generated|editorial)\/([0-9]+)/i,
   },
 
   // Adobe Stock
@@ -50,7 +50,18 @@ const STOCK_URL_PARSERS: Array<{ site: string; regex: RegExp }> = [
   { site: 'envato', regex: /elements\.envato\.com\/(?:[a-z-]+\/)+.+?-([A-Z0-9]+)/i },
 
   // Dreamstime
-  { site: 'dreamstime', regex: /dreamstime\.com\/.*?image([0-9]+)/i },
+  {
+    site: 'dreamstime',
+    regex: /(?:[a-z-]+\.)?dreamstime\.com\/(?:[^?#/]+\/)*[^?#/]*?-([0-9]+)(?:[?#].*)?$/i,
+  },
+  {
+    site: 'dreamstime',
+    regex: /(?:[a-z-]+\.)?dreamstime\.com\/(?:[^?#/]+\/)*[^?#/]*?(?:image|img)([0-9]+)(?:[?#].*)?$/i,
+  },
+  {
+    site: 'dreamstime',
+    regex: /(?:[a-z-]+\.)?dreamstime\.com\/[^?#]*?[?&]id=([0-9]+)(?:[&#].*)?$/i,
+  },
 
   // VectorStock
   { site: 'vectorstock', regex: /vectorstock\.com\/[a-z-]+\/[a-z-]+-([0-9]+)/i },
@@ -99,6 +110,8 @@ export const ALLOWED_STOCK_HOSTNAMES = new Set([
   'www.vecteezy.com',
 ]);
 
+const ALLOWED_HOSTNAME_SUFFIXES = ['.dreamstime.com'];
+
 const normalizeInputUrl = (input: string): URL => {
   const trimmed = input.trim();
   if (!trimmed) {
@@ -111,11 +124,20 @@ const normalizeInputUrl = (input: string): URL => {
   }
 };
 
+const isHostnameSupported = (hostname: string) => {
+  const lower = hostname.toLowerCase();
+  if (ALLOWED_STOCK_HOSTNAMES.has(lower)) {
+    return true;
+  }
+
+  return ALLOWED_HOSTNAME_SUFFIXES.some((suffix) => lower.endsWith(suffix));
+};
+
 export const parseStockUrl = (input: string): ParsedStockUrl => {
   const url = normalizeInputUrl(input);
   const hostname = url.hostname.toLowerCase();
 
-  if (!ALLOWED_STOCK_HOSTNAMES.has(hostname)) {
+  if (!isHostnameSupported(hostname)) {
     throw new Error('This provider is not supported. Please supply a URL from an approved stock site.');
   }
 
@@ -136,4 +158,4 @@ export const parseStockUrl = (input: string): ParsedStockUrl => {
   throw new Error('Could not parse the stock media ID from the URL or the site is not supported.');
 };
 
-export const isHostnameAllowed = (hostname: string) => ALLOWED_STOCK_HOSTNAMES.has(hostname.toLowerCase());
+export const isHostnameAllowed = (hostname: string) => isHostnameSupported(hostname);

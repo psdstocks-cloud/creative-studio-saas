@@ -22,6 +22,7 @@ import SupportedSites from './SupportedSites';
 import { useOrdersQuery, ORDERS_QUERY_KEY } from '../hooks/queries/useOrders';
 import { useQueryClient } from '../lib/queryClient';
 import { OrdersTable } from './orders/OrdersTable';
+import { isAuthError } from '../lib/utils';
 
 type DownloadState = 'idle' | 'fetching' | 'info' | 'ordering' | 'error';
 type Mode = 'single' | 'batch';
@@ -78,15 +79,23 @@ const RecentOrders = ({
   orders,
   onUpdate,
   isFetching,
+  error,
+  isAuthenticated,
 }: {
   orders: Order[];
   onUpdate: (taskId: string, newStatus: Order['status']) => void;
   isFetching: boolean;
+  error: unknown;
+  isAuthenticated: boolean;
 }) => {
   const { t } = useLanguage();
   const [downloading, setDownloading] = useState<Set<string>>(new Set());
 
-  useOrderPolling(orders, onUpdate);
+  const showAuthMessage = !isAuthenticated || isAuthError(error);
+  const hasNonAuthError = Boolean(error && !isAuthError(error));
+  const pollingOrders = showAuthMessage || hasNonAuthError ? [] : orders;
+
+  useOrderPolling(pollingOrders, onUpdate);
 
   const handleDownload = useCallback(async (taskId: string) => {
     setDownloading((prev) => new Set(prev).add(taskId));
@@ -126,15 +135,35 @@ const RecentOrders = ({
     }
   }, []);
 
-  return (
-    <div className="mt-8 animate-fadeIn">
-      <h2 className="mb-4 text-center text-xl font-semibold">{t('recentOrders')}</h2>
+  let content: React.ReactNode;
+
+  if (showAuthMessage) {
+    content = (
+      <p className="rounded-xl border border-dashed border-slate-700/60 bg-slate-900/40 p-6 text-center text-sm text-slate-400">
+        {t('signInToViewOrders')}
+      </p>
+    );
+  } else if (hasNonAuthError) {
+    content = (
+      <p className="rounded-xl border border-dashed border-rose-700/60 bg-rose-950/40 p-6 text-center text-sm text-rose-200">
+        {t('recentOrdersLoadError')}
+      </p>
+    );
+  } else {
+    content = (
       <OrdersTable
         orders={orders}
         onDownload={handleDownload}
         downloadingIds={downloading}
         isFetching={isFetching}
       />
+    );
+  }
+
+  return (
+    <div className="mt-8 animate-fadeIn">
+      <h2 className="mb-4 text-center text-xl font-semibold">{t('recentOrders')}</h2>
+      {content}
     </div>
   );
 };
@@ -160,9 +189,11 @@ const StockDownloader = () => {
 
   // Shared state
   const queryClient = useQueryClient();
-  const { data: recentOrders = [], isFetching: isOrdersFetching } = useOrdersQuery(
-    Boolean(user?.id)
-  );
+  const {
+    data: recentOrders = [],
+    isFetching: isOrdersFetching,
+    error: ordersError,
+  } = useOrdersQuery(Boolean(user?.id));
   const [error, setError] = useState<string | null>(null);
 
   const setRecentOrders = useCallback(
@@ -191,6 +222,9 @@ const StockDownloader = () => {
     try {
       await queryClient.invalidateQueries({ queryKey: ORDERS_QUERY_KEY });
     } catch (err) {
+      if (isAuthError(err)) {
+        return;
+      }
       console.error('Failed to refresh recent orders:', err);
     }
   }, [queryClient, user?.id]);
@@ -737,6 +771,8 @@ const StockDownloader = () => {
         orders={recentOrders}
         onUpdate={handleRecentOrderUpdate}
         isFetching={isOrdersFetching}
+        error={ordersError}
+        isAuthenticated={Boolean(user?.id)}
       />
 
       <div className="mt-12">

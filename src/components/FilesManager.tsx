@@ -15,6 +15,7 @@ import {
 } from './icons/Icons';
 import { Link } from 'react-router-dom';
 import { buildStockMediaUrl } from '../utils/stockUrlBuilder';
+import { isAuthError } from '../lib/utils';
 
 const useOrderPolling = (
   orders: Order[],
@@ -62,20 +63,30 @@ const FilesManager = () => {
   useOrderPolling(orders, handleUpdate);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setOrders([]);
+      setError(t('signInToViewOrders'));
+      setIsLoading(false);
+      return;
+    }
     const fetchOrders = async () => {
       setIsLoading(true);
       try {
         const userOrders = await getOrders();
         setOrders(userOrders);
       } catch (err: any) {
-        setError(err.message);
+        if (isAuthError(err)) {
+          setOrders([]);
+          setError(t('signInToViewOrders'));
+        } else {
+          setError(err?.message || t('recentOrdersLoadError'));
+        }
       } finally {
         setIsLoading(false);
       }
     };
     fetchOrders();
-  }, [user]);
+  }, [t, user]);
 
   const filteredOrders = useMemo(() => {
     if (!searchQuery.trim()) {
