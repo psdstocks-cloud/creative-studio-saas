@@ -145,9 +145,17 @@ export const onRequest = async (context: FunctionContext) => {
   }
 
   const responseHeaders = createCorsHeaders(request);
+
+  // Headers to exclude from the upstream response
+  const excludedHeaders = new Set([
+    'content-length',
+    'content-encoding',
+    'transfer-encoding',
+  ]);
+
   upstreamResponse.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
-    if (lower === 'content-length') {
+    if (excludedHeaders.has(lower)) {
       return;
     }
     responseHeaders.set(key, value);

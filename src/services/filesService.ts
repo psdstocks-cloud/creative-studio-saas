@@ -53,12 +53,12 @@ export const findOrderBySiteAndId = async (site: string, id: string): Promise<Or
   const data = await apiFetch('/orders/lookup', {
     method: 'GET',
     auth: true,
-    body: { site, id },
+    params: { site, id },
   });
 
   if (!data || typeof data !== 'object') {
     throw new Error('Unexpected response while looking up order.');
   }
 
-  return 'order' in data && data.order ? (data.order as Order) : null;
+  return 'existing' in data && data.existing ? (data.existing as Order) : null;
 };
