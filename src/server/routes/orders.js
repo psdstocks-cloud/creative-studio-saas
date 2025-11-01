@@ -1,5 +1,6 @@
 import express from 'express';
 import { supabaseAdmin, requireUserFromAuthHeader } from '../lib/supabase.js';
+import { buildUpstreamUrl, upstreamHeaders } from '../lib/proxy.js';
 
 const ordersRouter = express.Router();
 
@@ -10,6 +11,118 @@ const ensureSupabase = () => {
     throw error;
   }
   return supabaseAdmin;
+};
+
+// Stock URL parsing and validation utilities
+const parseAndValidateSourceUrl = (sourceUrl) => {
+  if (!sourceUrl || typeof sourceUrl !== 'string') {
+    const error = new Error('Invalid source URL');
+    error.status = 400;
+    throw error;
+  }
+
+  const trimmed = sourceUrl.trim();
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    const error = new Error('Source URL is not a valid URL');
+    error.status = 400;
+    throw error;
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  let site = null;
+  let id = null;
+
+  // Depositphotos
+  if (hostname.includes('depositphotos.com')) {
+    site = 'depositphotos';
+    const match = url.pathname.match(/\/(\d+)\.html?$/);
+    if (match) {
+      id = match[1];
+    }
+  }
+  // Shutterstock
+  else if (hostname.includes('shutterstock.com')) {
+    site = 'shutterstock';
+    const match = url.pathname.match(/\/image-(?:photo|vector|illustration)-(\d+)/);
+    if (match) {
+      id = match[1];
+    }
+  }
+  // iStock
+  else if (hostname.includes('istockphoto.com')) {
+    site = 'istock';
+    const parts = url.pathname.split('/');
+    const lastPart = parts[parts.length - 1];
+    const match = lastPart.match(/gm(\d+)/);
+    if (match) {
+      id = match[1];
+    }
+  }
+  // Adobe Stock
+  else if (hostname.includes('stock.adobe.com')) {
+    site = 'adobe';
+    const match = url.pathname.match(/\/images\/(\d+)/);
+    if (match) {
+      id = match[1];
+    }
+  }
+
+  if (!site || !id) {
+    const error = new Error('Unable to parse site and ID from source URL');
+    error.status = 400;
+    throw error;
+  }
+
+  return {
+    site,
+    id,
+    normalizedUrl: trimmed,
+  };
+};
+
+// Fetch stock metadata from upstream API
+const fetchStockMetadata = async (site, id) => {
+  const url = buildUpstreamUrl(`stockinfo/${encodeURIComponent(site)}/${encodeURIComponent(id)}`);
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: upstreamHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Failed to fetch stock metadata: ${response.statusText}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  const data = await response.json();
+  return data;
+};
+
+// Normalize stock info
+const normalizeStockInfo = (metadata, site, id, sourceUrl) => {
+  const title = metadata?.title || metadata?.name || 'Untitled';
+  const preview = metadata?.preview || metadata?.thumb || metadata?.thumbnail || null;
+  const cost = typeof metadata?.cost === 'number' ? metadata.cost : 1.0;
+  const author = metadata?.author || metadata?.creator || 'Unknown';
+  const ext = metadata?.ext || metadata?.extension || 'jpg';
+  const sizeInBytes = metadata?.sizeInBytes || metadata?.size || 0;
+  const name = metadata?.name || metadata?.filename || `${site}-${id}.${ext}`;
+
+  return {
+    site,
+    id,
+    title,
+    name,
+    preview,
+    cost,
+    author,
+    ext,
+    sizeInBytes,
+    sourceUrl,
+  };
 };
 
 ordersRouter.get('/', async (req, res) => {
@@ -32,6 +145,116 @@ ordersRouter.get('/', async (req, res) => {
   } catch (error) {
     const status = typeof error?.status === 'number' ? error.status : 500;
     res.status(status).json({ message: error?.message || 'Unable to load orders' });
+  }
+});
+
+ordersRouter.post('/', async (req, res) => {
+  try {
+    const user = await requireUserFromAuthHeader(req);
+    req.user = user;
+    const client = ensureSupabase();
+
+    const { taskId, site, stockId, sourceUrl } = req.body ?? {};
+
+    // Validate required fields
+    if (!taskId || typeof taskId !== 'string') {
+      const error = new Error('taskId is required.');
+      error.status = 400;
+      throw error;
+    }
+    if (!sourceUrl || typeof sourceUrl !== 'string') {
+      const error = new Error('sourceUrl is required.');
+      error.status = 400;
+      throw error;
+    }
+
+    // Parse and validate the source URL
+    const parsed = parseAndValidateSourceUrl(sourceUrl);
+    const resolvedSite = typeof site === 'string' ? site : parsed.site;
+    const resolvedId = typeof stockId === 'string' ? stockId : parsed.id;
+
+    // Ensure the site/id matches the URL
+    if (parsed.site !== resolvedSite || parsed.id !== resolvedId) {
+      const error = new Error('The provided site/id does not match the source URL.');
+      error.status = 400;
+      throw error;
+    }
+
+    // Check for existing orders (for re-download detection)
+    const { data: existingOrder, error: existingError } = await client
+      .from('stock_order')
+      .select('id, status')
+      .eq('user_id', user.id)
+      .eq('file_info->>site', resolvedSite)
+      .eq('file_info->>id', resolvedId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      throw existingError;
+    }
+
+    // Fetch stock metadata from upstream API
+    const metadata = await fetchStockMetadata(resolvedSite, resolvedId);
+    const normalized = normalizeStockInfo(metadata, resolvedSite, resolvedId, parsed.normalizedUrl);
+
+    // Calculate cost (0 for re-downloads of ready orders)
+    const isReDownload = existingOrder?.status === 'ready';
+    const amountToDeduct = isReDownload ? 0 : normalized.cost;
+
+    if (amountToDeduct < 0) {
+      const error = new Error('Calculated price was negative.');
+      error.status = 400;
+      throw error;
+    }
+
+    // Create order via RPC function (handles balance deduction atomically)
+    const { data: orderData, error: orderError } = await client.rpc('secure_create_stock_order', {
+      p_user_id: user.id,
+      p_task_id: taskId,
+      p_amount: amountToDeduct,
+      p_file_info: normalized,
+      p_status: 'processing',
+    });
+
+    if (orderError) {
+      const message = orderError.message || 'Failed to create order.';
+      if (/insufficient balance/i.test(message)) {
+        const error = new Error('Insufficient balance to complete this purchase.');
+        error.status = 402;
+        throw error;
+      }
+      throw orderError;
+    }
+
+    if (!orderData) {
+      const error = new Error('Order creation returned an empty result.');
+      error.status = 500;
+      throw error;
+    }
+
+    // Fetch updated balance
+    const { data: profile, error: profileError } = await client
+      .from('profiles')
+      .select('balance')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      const error = new Error(profileError?.message || 'Could not load updated balance.');
+      error.status = 500;
+      throw error;
+    }
+
+    res.json({
+      order: orderData,
+      balance: Number(profile.balance),
+      reDownload: isReDownload,
+    });
+  } catch (error) {
+    const status = typeof error?.status === 'number' ? error.status : 500;
+    res.status(status).json({ message: error?.message || 'Unable to create order' });
   }
 });
 
