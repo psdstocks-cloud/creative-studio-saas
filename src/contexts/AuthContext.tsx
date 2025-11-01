@@ -408,7 +408,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             ? bffUser.metadata
             : (candidate.metadata ?? null);
 
-        console.log('AuthProvider: Successfully synchronized with BFF session');
         return {
           ...candidate,
           email: bffUser.email || candidate.email,

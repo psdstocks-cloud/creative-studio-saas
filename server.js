@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import { WebSocketServer, WebSocket } from 'ws';
+import { Readable } from 'node:stream';
 import { buildCors, getAllowedOrigins } from './src/server/lib/cors.js';
 import { ordersRouter } from './src/server/routes/orders.js';
 import { stockinfoRouter } from './src/server/routes/stockinfo.js';
@@ -960,8 +961,29 @@ adminRouter.get(
         headers: { 'X-Api-Key': STOCK_API_KEY },
       });
 
-      const data = await upstreamResponse.json().catch(() => null);
-      res.status(upstreamResponse.status).json(data ?? { message: 'Unable to load order status.' });
+      // Exclude content-encoding to prevent ERR_CONTENT_DECODING_FAILED
+      const excludedHeaders = new Set([
+        'content-length',
+        'content-encoding',
+        'transfer-encoding',
+      ]);
+
+      upstreamResponse.headers.forEach((value, key) => {
+        if (key && !excludedHeaders.has(key.toLowerCase())) {
+          res.setHeader(key, value);
+        }
+      });
+
+      res.status(upstreamResponse.status);
+
+      if (!upstreamResponse.body) {
+        res.json({ message: 'Unable to load order status.' });
+        return;
+      }
+
+      // Stream the response to avoid content decoding issues
+      const readable = Readable.fromWeb(upstreamResponse.body);
+      readable.pipe(res);
     } catch (error) {
       console.error('Failed to fetch upstream order status', error);
       res.status(502).json({ message: 'Unable to reach upstream order status endpoint.' });
