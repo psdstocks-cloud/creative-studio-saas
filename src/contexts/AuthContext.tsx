@@ -27,6 +27,8 @@ interface AuthContextType {
   resendConfirmationEmail: (email: string) => Promise<void>;
   hasRole: (roles: string | string[]) => boolean;
   userRoles: string[];
+  accessToken: string | null;
+  getAccessToken: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -171,6 +173,7 @@ const createProfileFetchError = (
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const userRoles = user?.roles ?? EMPTY_ROLES;
 
   const getStoredSession = useCallback((): Session | null => {
@@ -476,6 +479,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           timeoutId = undefined;
         }
 
+        setAccessToken(session?.access_token ?? null);
+
         if (session?.user) {
           // FAST PATH: Use JWT data immediately
           console.log('AuthProvider: Initializing with JWT data (fast path)');
@@ -501,6 +506,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             });
         } else {
           setUser(null);
+          setAccessToken(null);
           setIsLoading(false);
         }
       } catch (e) {
@@ -530,6 +536,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           }
         } else if (mounted) {
           setUser(null);
+          setAccessToken(null);
         }
 
         if (mounted) {
@@ -544,6 +551,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (mounted) {
+        setAccessToken(session?.access_token ?? null);
         try {
           const appUser = await getAppUserFromSession(session);
           const hydratedUser = await synchronizeBffSession(appUser);
@@ -566,8 +574,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             );
             await supabase.auth.signOut();
             setUser(null);
+            setAccessToken(null);
           } else {
             setUser(null);
+            setAccessToken(null);
           }
         }
       }
@@ -599,6 +609,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           throw new Error('No active session found after sign in.');
         }
 
+        setAccessToken(session?.access_token ?? null);
         const appUser = await getAppUserFromSession(session);
         const hydratedUser = await synchronizeBffSession(appUser);
 
@@ -654,6 +665,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       setUser(null);
+      setAccessToken(null);
       
       try {
         const keys = Object.keys(localStorage);
@@ -670,6 +682,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error: any) {
       console.error('Unexpected error during sign out', error);
       setUser(null);
+      setAccessToken(null);
     }
   }, []);
 
@@ -741,8 +754,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       data: { session },
     } = await supabase.auth.getSession();
 
+    setAccessToken(session?.access_token ?? null);
+
     if (!session?.user) {
       setUser(null);
+      setAccessToken(null);
       return null;
     }
 
@@ -771,6 +787,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       setUser(null);
+      setAccessToken(null);
       throw profileError instanceof Error ? profileError : new Error('Could not refresh profile.');
     }
   }, [getAppUserFromSession, synchronizeBffSession]);
@@ -786,6 +803,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       throw new Error(error.message || 'Could not resend confirmation email.');
     }
   }, []);
+
+  const getAccessToken = useCallback(() => accessToken, [accessToken]);
 
   return (
     <AuthContext.Provider
@@ -803,6 +822,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         resendConfirmationEmail,
         hasRole,
         userRoles,
+        accessToken,
+        getAccessToken,
       }}
     >
       {children}
