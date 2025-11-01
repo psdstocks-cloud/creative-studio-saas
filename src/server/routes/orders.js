@@ -99,4 +99,62 @@ ordersRouter.get('/:taskId', async (req, res) => {
   }
 });
 
+ordersRouter.patch('/:taskId', async (req, res) => {
+  try {
+    const user = await requireUserFromAuthHeader(req);
+    req.user = user;
+    const client = ensureSupabase();
+    const { taskId } = req.params;
+
+    // Get the current order to ensure it belongs to the user
+    const { data: existingOrder, error: fetchError } = await client
+      .from('stock_order')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('task_id', taskId)
+      .maybeSingle();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
+
+    if (!existingOrder) {
+      res.status(404).json({ message: 'Order not found' });
+      return;
+    }
+
+    // Update the order with the provided fields
+    const allowedFields = ['status', 'file_info', 'download_url'];
+    const updates = {};
+
+    for (const field of allowedFields) {
+      if (field in req.body) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ message: 'No valid fields to update' });
+      return;
+    }
+
+    const { data, error: updateError } = await client
+      .from('stock_order')
+      .update(updates)
+      .eq('user_id', user.id)
+      .eq('task_id', taskId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    res.json({ order: data });
+  } catch (error) {
+    const status = typeof error?.status === 'number' ? error.status : 500;
+    res.status(status).json({ message: error?.message || 'Unable to update order' });
+  }
+});
+
 export { ordersRouter };
