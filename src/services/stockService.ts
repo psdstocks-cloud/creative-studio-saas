@@ -76,14 +76,6 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
 
   // Validate the response to prevent showing an empty modal.
   if (!previewUrl || !data.id) {
-    logger.error(
-      'Missing required fields in stock API response',
-      new Error('Missing preview or id'),
-      {
-        hasPreview: !!previewUrl,
-        hasId: !!data.id,
-      }
-    );
     throw new Error(
       'Could not retrieve file details. The URL might be incorrect or the file is unavailable.'
     );
