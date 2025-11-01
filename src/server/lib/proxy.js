@@ -2,7 +2,7 @@
 import { Readable } from 'node:stream';
 
 const STOCK_UPSTREAM = process.env.STOCK_API_BASE_URL || 'https://nehtw.com/api';
-const STOCK_KEY = process.env.STOCK_API_KEY;
+const STOCK_KEY = process.env.STOCK_API_KEY || process.env.STOCK_API || process.env.NEHTW_API_KEY;
 
 function ensureTrailingSlash(url) {
   return url.endsWith('/') ? url : url + '/';
@@ -27,7 +27,7 @@ export function buildUpstreamUrl(path, searchParams = {}) {
 export function upstreamHeaders() {
   const headers = new Headers();
   if (STOCK_KEY) {
-    headers.set('Authorization', `Bearer ${STOCK_KEY}`);
+    headers.set('X-Api-Key', STOCK_KEY);
   }
   return headers;
 }
