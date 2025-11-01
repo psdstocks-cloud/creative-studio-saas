@@ -84,6 +84,8 @@ export const translations = {
     // Fix: Add missing stock downloader translation keys
     recentOrders: 'Recent Orders',
     noRecentOrders: 'No recent orders yet.',
+    signInToViewOrders: 'Sign in to see your recent orders.',
+    recentOrdersLoadError: "We couldn't load your recent orders. Please try again.",
     cost: 'Cost',
     processingStatus: 'Processing',
     readyStatus: 'Ready',
@@ -243,6 +245,8 @@ export const translations = {
     // Fix: Add missing stock downloader translation keys
     recentOrders: 'الطلبات الأخيرة',
     noRecentOrders: 'لا توجد طلبات حديثة بعد.',
+    signInToViewOrders: 'سجّل الدخول لعرض طلباتك الأخيرة.',
+    recentOrdersLoadError: 'تعذر تحميل طلباتك الأخيرة. حاول مرة أخرى لاحقًا.',
     cost: 'التكلفة',
     processingStatus: 'قيد المعالجة',
     readyStatus: 'جاهز',
