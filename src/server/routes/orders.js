@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabaseAdmin, requireUserFromAuthHeader } from '../lib/supabase.js';
 import { buildUpstreamUrl, upstreamHeaders } from '../lib/proxy.js';
+import { parseStockUrl } from '../../../shared/stockUrl.js';
 
 const ordersRouter = express.Router();
 
@@ -15,72 +16,18 @@ const ensureSupabase = () => {
 
 // Stock URL parsing and validation utilities
 const parseAndValidateSourceUrl = (sourceUrl) => {
-  if (!sourceUrl || typeof sourceUrl !== 'string') {
-    const error = new Error('Invalid source URL');
-    error.status = 400;
-    throw error;
-  }
-
-  const trimmed = sourceUrl.trim();
-  let url;
   try {
-    url = new URL(trimmed);
-  } catch {
-    const error = new Error('Source URL is not a valid URL');
-    error.status = 400;
-    throw error;
+    const parsed = parseStockUrl(sourceUrl);
+    return {
+      site: parsed.site,
+      id: parsed.id,
+      normalizedUrl: parsed.normalizedUrl,
+    };
+  } catch (error) {
+    const err = new Error(error?.message || 'Unable to parse site and ID from source URL');
+    err.status = 400;
+    throw err;
   }
-
-  const hostname = url.hostname.toLowerCase();
-  let site = null;
-  let id = null;
-
-  // Depositphotos
-  if (hostname.includes('depositphotos.com')) {
-    site = 'depositphotos';
-    const match = url.pathname.match(/\/(\d+)\.html?$/);
-    if (match) {
-      id = match[1];
-    }
-  }
-  // Shutterstock
-  else if (hostname.includes('shutterstock.com')) {
-    site = 'shutterstock';
-    const match = url.pathname.match(/\/image-(?:photo|vector|illustration)-(\d+)/);
-    if (match) {
-      id = match[1];
-    }
-  }
-  // iStock
-  else if (hostname.includes('istockphoto.com')) {
-    site = 'istock';
-    const parts = url.pathname.split('/');
-    const lastPart = parts[parts.length - 1];
-    const match = lastPart.match(/gm(\d+)/);
-    if (match) {
-      id = match[1];
-    }
-  }
-  // Adobe Stock
-  else if (hostname.includes('stock.adobe.com')) {
-    site = 'adobe';
-    const match = url.pathname.match(/\/images\/(\d+)/);
-    if (match) {
-      id = match[1];
-    }
-  }
-
-  if (!site || !id) {
-    const error = new Error('Unable to parse site and ID from source URL');
-    error.status = 400;
-    throw error;
-  }
-
-  return {
-    site,
-    id,
-    normalizedUrl: trimmed,
-  };
 };
 
 // Fetch stock metadata from upstream API
