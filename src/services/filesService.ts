@@ -1,5 +1,6 @@
 import { apiFetch } from './api';
 import type { Order } from '../types';
+import { isAuthError } from '../lib/utils';
 
 interface CreateOrderPayload {
   taskId: string;
@@ -29,16 +30,24 @@ export const createOrder = async (payload: CreateOrderPayload): Promise<CreateOr
 };
 
 export const getOrders = async (): Promise<Order[]> => {
-  const data = await apiFetch('/orders', {
-    method: 'GET',
-    auth: true,
-  });
+  try {
+    const data = await apiFetch('/orders', {
+      method: 'GET',
+      auth: true,
+    });
 
-  if (!data || typeof data !== 'object' || !('orders' in data)) {
-    throw new Error('Unexpected response while fetching orders.');
+    if (!data || typeof data !== 'object' || !('orders' in data)) {
+      throw new Error('Unexpected response while fetching orders.');
+    }
+
+    return (data as { orders: Order[] }).orders;
+  } catch (error) {
+    if (isAuthError(error)) {
+      return [];
+    }
+
+    throw error;
   }
-
-  return (data as { orders: Order[] }).orders;
 };
 
 export const updateOrder = async (taskId: string, updates: Partial<Order>): Promise<void> => {
