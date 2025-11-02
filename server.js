@@ -869,11 +869,15 @@ app.post('/api/auth/signin', async (req, res) => {
     }
 
     // Set auth cookie (HttpOnly)
-    res.append('Set-Cookie', buildAuthCookie('sb-access-token', access_token));
+    const authCookieStr = buildAuthCookie('sb-access-token', access_token);
+    res.append('Set-Cookie', authCookieStr);
+    console.log('✅ Setting auth cookie:', authCookieStr.substring(0, 100) + '...');
 
     // Generate and set CSRF token (non-HttpOnly)
     const csrfToken = generateCsrfToken();
-    res.append('Set-Cookie', buildCsrfCookie(csrfToken));
+    const csrfCookieStr = buildCsrfCookie(csrfToken);
+    res.append('Set-Cookie', csrfCookieStr);
+    console.log('✅ Setting CSRF cookie:', csrfCookieStr.substring(0, 100) + '...');
 
     // Audit log
     writeAuditEntry({
