@@ -428,55 +428,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     let mounted = true;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const handleInitializationTimeout = () => {
-      if (!mounted) {
-        return;
-      }
-
-      console.warn('Auth initialization timed out after 15 seconds');
-
-      const storedSession = getStoredSession();
-      if (storedSession?.user) {
-        const fallbackUser = buildFallbackUser(storedSession.user);
-
-        void (async () => {
-          try {
-            const hydratedFallback = await synchronizeBffSession(fallbackUser);
-            if (mounted) {
-              setUser(hydratedFallback);
-            }
-          } catch (error) {
-            console.warn('AuthProvider: Failed to hydrate stored session after timeout', error);
-            if (mounted) {
-              setUser(fallbackUser);
-            }
-          } finally {
-            if (mounted) {
-              setIsLoading(false);
-            }
-          }
-        })();
-      } else {
-        setIsLoading(false);
-      }
-    };
 
     async function initializeAuth() {
       try {
-        timeoutId = setTimeout(handleInitializationTimeout, 15000);
-
         // Check for session via cookies via BFF endpoint
         const bffSession = await fetchBffSession();
 
         if (!mounted) {
           return;
-        }
-
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = undefined;
         }
 
         if (bffSession?.user) {
@@ -501,10 +460,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       } catch (e) {
         console.error('AuthProvider: Error initializing auth', e);
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = undefined;
-        }
 
         if (!mounted) {
           return;
@@ -518,50 +473,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     void initializeAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (mounted) {
-        setAccessToken(session?.access_token ?? null);
-        try {
-          const appUser = await getAppUserFromSession(session);
-          const hydratedUser = await synchronizeBffSession(appUser);
-          setUser(hydratedUser);
-        } catch (profileError) {
-          const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
-          console.error('Failed to load user profile during auth state change:', profileError);
-
-          if (session?.user) {
-            console.warn('AuthProvider: Using fallback profile after auth state change failure', {
-              failureType,
-              userId: session.user.id,
-            });
-            const fallback = buildFallbackUser(session.user);
-            const hydratedFallback = await synchronizeBffSession(fallback);
-            setUser(hydratedFallback);
-          } else if (failureType !== 'timeout' && failureType !== 'permission') {
-            console.warn(
-              'AuthProvider: Signing out after auth state change due to profile fetch error'
-            );
-            await supabase.auth.signOut();
-            setUser(null);
-            setAccessToken(null);
-          } else {
-            setUser(null);
-            setAccessToken(null);
-          }
-        }
-      }
-    });
+    // Note: onAuthStateChange not used with cookie-based auth
+    // All auth state is managed via cookies and session endpoint
 
     return () => {
       mounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      subscription.unsubscribe();
     };
-  }, [getAppUserFromSession, synchronizeBffSession, getStoredSession]);
+  }, []);
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<void> => {
@@ -707,47 +625,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const refreshProfile = useCallback(async (): Promise<User | null> => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    setAccessToken(session?.access_token ?? null);
-
-    if (!session?.user) {
-      setUser(null);
-      setAccessToken(null);
-      return null;
-    }
-
     try {
-      const appUser = await getAppUserFromSession(session);
-      const hydratedUser = await synchronizeBffSession(appUser);
-      setUser(hydratedUser);
-      return hydratedUser;
-    } catch (profileError) {
-      const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
-      console.error('AuthProvider: Failed to refresh user profile', profileError);
+      // Fetch fresh session from BFF
+      const bffSession = await fetchBffSession();
 
-      if (session?.user) {
-        console.warn('AuthProvider: Using fallback profile after refresh failure', {
-          failureType,
-          userId: session.user.id,
-        });
-        const fallbackUser = buildFallbackUser(session.user);
-        const hydratedFallback = await synchronizeBffSession(fallbackUser);
-        setUser(hydratedFallback);
-        return hydratedFallback;
+      if (bffSession?.user) {
+        const appUser: User = {
+          id: bffSession.user.id,
+          email: bffSession.user.email,
+          roles: bffSession.user.roles,
+          metadata: bffSession.user.metadata,
+          balance: bffSession.user.balance || 100,
+        };
+
+        setUser(appUser);
+        setAccessToken(null); // Token in httpOnly cookie
+        return appUser;
+      } else {
+        setUser(null);
+        setAccessToken(null);
+        return null;
       }
-
-      if (failureType !== 'timeout' && failureType !== 'permission') {
-        await supabase.auth.signOut();
-      }
-
+    } catch (error) {
+      console.error('AuthProvider: Failed to refresh user profile', error);
       setUser(null);
       setAccessToken(null);
-      throw profileError instanceof Error ? profileError : new Error('Could not refresh profile.');
+      throw error instanceof Error ? error : new Error('Could not refresh profile.');
     }
-  }, [getAppUserFromSession, synchronizeBffSession]);
+  }, []);
 
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resend({
