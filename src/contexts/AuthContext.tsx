@@ -11,8 +11,6 @@ import { logger } from '../lib/logger';
 import type { User } from '../types';
 import type { Session, PostgrestError } from '@supabase/supabase-js';
 import { deductBalance } from '../services/profileService';
-import { fetchBffSession, destroyBffSession, type BffSessionResponse } from '../services/bffSession';
-import { apiFetch } from '../services/api';
 import { setAuthTokenGetter } from '../services/api';
 
 interface AuthContextType {
@@ -91,28 +89,6 @@ const extractRolesFromSession = (sessionUser: Session['user']): string[] => {
   normalized.add(DEFAULT_ROLE);
 
   return Array.from(normalized);
-};
-
-const mergeRoleSets = (...roleSets: Array<string[] | undefined>): string[] => {
-  const merged = new Set<string>();
-
-  for (const roles of roleSets) {
-    if (!roles) {
-      continue;
-    }
-
-    roles.forEach((role) => {
-      if (typeof role === 'string' && role.trim().length > 0) {
-        merged.add(role.toLowerCase());
-      }
-    });
-  }
-
-  if (!merged.has(DEFAULT_ROLE)) {
-    merged.add(DEFAULT_ROLE);
-  }
-
-  return Array.from(merged);
 };
 
 const buildFallbackUser = (sessionUser: Session['user']): User => ({
@@ -279,7 +255,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               if (failureType === 'missing') {
                 logger.info('Creating missing profile for user', { userId: session.user.id });
                 
-                // Fixed: Type assertion for insert
                 const { error: insertError, status: insertStatus } = await supabase
                   .from('profiles')
                   .insert([{ id: session.user.id, balance: 100 }] as any);
@@ -333,7 +308,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               userId: session.user.id,
             });
 
-            // Fixed: Null check for profile
             return {
               ...fallbackUser,
               balance: profile ? Number(profile.balance ?? fallbackUser.balance) : fallbackUser.balance,
@@ -389,12 +363,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
           if (typedError.failureType === 'permission') {
             console.warn(
-              'AuthProvider: Profile fetch failed due to permission issues. Using fallback user. (This is expected for new users with pending migrations.)',
+              'AuthProvider: Profile fetch failed due to permission issues. Using fallback user.',
               {
                 userId: session.user.id,
                 code: typedError.code,
-                details: typedError.details,
-                hint: typedError.hint,
               }
             );
             return fallbackUser;
@@ -412,7 +384,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.error('AuthProvider: Profile fetch failed with unrecoverable error', {
           error: errorToReport.message,
           userId: session.user.id,
-          failureType: lastError && 'failureType' in lastError ? lastError.failureType : 'unknown',
         });
 
         throw errorToReport;
@@ -431,33 +402,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     async function initializeAuth() {
       try {
-        // Check for session via cookies via BFF endpoint
-        const bffSession = await fetchBffSession();
+        // CHANGED: Get session directly from Supabase (includes access_token)
+        const { data: { session }, error } = await supabase.auth.getSession();
 
         if (!mounted) {
           return;
         }
 
-        if (bffSession?.user) {
-          // User is authenticated via cookies
-          const appUser: User = {
-            id: bffSession.user.id,
-            email: bffSession.user.email,
-            roles: bffSession.user.roles,
-            metadata: bffSession.user.metadata,
-            balance: bffSession.user.balance || 100, // Use balance from session
-          };
-
-          // Set user immediately
-          setUser(appUser);
-          // Access token is in httpOnly cookie, not accessible in browser
-          setAccessToken(null);
-          setIsLoading(false);
-        } else {
+        if (error) {
+          console.error('AuthProvider: Error getting session', error);
           setUser(null);
           setAccessToken(null);
           setIsLoading(false);
+          return;
         }
+
+        if (session?.user) {
+          console.log('🔐 Session found, extracting token', {
+            userId: session.user.id,
+            hasToken: !!session.access_token,
+            tokenLength: session.access_token?.length || 0
+          });
+
+          const appUser = await getAppUserFromSession(session);
+          
+          if (appUser) {
+            setUser(appUser);
+            // CHANGED: Store the actual access token from Supabase
+            setAccessToken(session.access_token);
+          } else {
+            setUser(null);
+            setAccessToken(null);
+          }
+        } else {
+          setUser(null);
+          setAccessToken(null);
+        }
+        
+        setIsLoading(false);
       } catch (e) {
         console.error('AuthProvider: Error initializing auth', e);
 
@@ -473,48 +455,76 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     void initializeAuth();
 
-    // Note: onAuthStateChange not used with cookie-based auth
-    // All auth state is managed via cookies and session endpoint
+    // CHANGED: Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔐 Auth state changed:', event, {
+          hasSession: !!session,
+          hasToken: !!session?.access_token
+        });
+
+        if (session?.user) {
+          const appUser = await getAppUserFromSession(session);
+          if (appUser) {
+            setUser(appUser);
+            setAccessToken(session.access_token);
+          } else {
+            setUser(null);
+            setAccessToken(null);
+          }
+        } else {
+          setUser(null);
+          setAccessToken(null);
+        }
+      }
+    );
 
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
-  }, []);
+  }, [getAppUserFromSession]);
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<void> => {
       try {
-        // Use backend sign-in endpoint that sets httpOnly cookies
-        const response = await apiFetch('/api/auth/signin', {
-          method: 'POST',
-          body: { email, password },
-          auth: false,
-        }) as BffSessionResponse;
+        // CHANGED: Use Supabase directly to get access token
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-        if (!response || !response.user) {
+        if (error) {
+          throw new Error(error.message || 'Invalid credentials. Please try again.');
+        }
+
+        if (!data.session || !data.user) {
           throw new Error('Invalid credentials. Please try again.');
         }
 
-        // Convert BFF user to app user
-        const appUser: User = {
-          id: response.user.id,
-          email: response.user.email,
-          roles: response.user.roles,
-          metadata: response.user.metadata,
-          balance: response.user.balance || 100, // Use balance from response
-        };
+        console.log('🔐 Sign in successful', {
+          userId: data.user.id,
+          hasToken: !!data.session.access_token,
+          tokenLength: data.session.access_token?.length || 0
+        });
 
-        // Set the user immediately
+        const appUser = await getAppUserFromSession(data.session);
+        
+        if (!appUser) {
+          throw new Error('Failed to load user profile.');
+        }
+
         setUser(appUser);
-        // Note: access token is in httpOnly cookie, not accessible in browser
-        setAccessToken(null);
+        // CHANGED: Store the actual access token
+        setAccessToken(data.session.access_token);
+
       } catch (error: any) {
         console.error('AuthProvider: Sign in error', error);
         const message = error?.message || 'Could not complete sign in.';
         throw new Error(message);
       }
     },
-    []
+    [getAppUserFromSession]
   );
 
   const signUp = useCallback(async (email: string, password: string): Promise<void> => {
@@ -530,12 +540,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = useCallback(async () => {
     try {
-      try {
-        await destroyBffSession();
-      } catch (error: any) {
-        console.warn('AuthProvider: Failed to terminate BFF session during sign out', error);
-      }
-
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error signing out:', error.message);
@@ -626,33 +630,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const refreshProfile = useCallback(async (): Promise<User | null> => {
     try {
-      // Fetch fresh session from BFF
-      const bffSession = await fetchBffSession();
+      // CHANGED: Get session directly from Supabase
+      const { data: { session }, error } = await supabase.auth.getSession();
 
-      if (bffSession?.user) {
-        const appUser: User = {
-          id: bffSession.user.id,
-          email: bffSession.user.email,
-          roles: bffSession.user.roles,
-          metadata: bffSession.user.metadata,
-          balance: bffSession.user.balance || 100,
-        };
-
-        setUser(appUser);
-        setAccessToken(null); // Token in httpOnly cookie
-        return appUser;
-      } else {
-        setUser(null);
-        setAccessToken(null);
-        return null;
+      if (error) {
+        throw error;
       }
+
+      if (session?.user) {
+        const appUser = await getAppUserFromSession(session);
+        
+        if (appUser) {
+          setUser(appUser);
+          setAccessToken(session.access_token);
+          return appUser;
+        }
+      }
+      
+      setUser(null);
+      setAccessToken(null);
+      return null;
     } catch (error) {
       console.error('AuthProvider: Failed to refresh user profile', error);
       setUser(null);
       setAccessToken(null);
       throw error instanceof Error ? error : new Error('Could not refresh profile.');
     }
-  }, []);
+  }, [getAppUserFromSession]);
 
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resend({
