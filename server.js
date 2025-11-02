@@ -787,13 +787,20 @@ app.post('/api/auth/signin', async (req, res) => {
   }
 
   try {
-    // Get anon key for authentication
+    // Get anon key for authentication (try both names)
     const SUPABASE_ANON_KEY = 
       process.env.SUPABASE_ANON_KEY ||
       process.env.VITE_SUPABASE_ANON_KEY ||
       null;
 
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    if (!SUPABASE_URL) {
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+
+    // Try using anon key first, fall back to service role key if not available
+    const apiKey = SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!apiKey) {
       return res.status(500).json({ message: 'Server configuration error' });
     }
 
@@ -803,8 +810,8 @@ app.post('/api/auth/signin', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: new URLSearchParams({ email, password, grant_type: 'password' }),
     });
