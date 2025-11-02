@@ -555,7 +555,10 @@ const requestLogger = (req, res, next) => {
 
 const attachSession = async (req, res, next) => {
   try {
-    const cookies = parseCookies(req.headers.cookie);
+    const cookieHeader = req.headers.cookie;
+    console.log('🔍 Cookie header:', cookieHeader ? cookieHeader.substring(0, 100) : 'null or undefined');
+    const cookies = parseCookies(cookieHeader);
+    console.log('🔍 Parsed cookies:', Object.keys(cookies));
     
     // Priority 1: Check for cookie-based auth (new method)
     const accessToken = cookies['sb-access-token'];
