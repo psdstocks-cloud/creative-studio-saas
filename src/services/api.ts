@@ -122,27 +122,7 @@ const requestInterceptor: RequestInterceptor = async (config) => {
   if (!headers['X-Request-ID']) {
     headers['X-Request-ID'] = createRequestId();
   }
-  
-  // Add CSRF token for state-changing requests
-  const method = (config.method || 'get').toUpperCase();
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const csrfToken = getCookie('XSRF-TOKEN');
-    if (csrfToken) {
-      headers['X-CSRF-Token'] = csrfToken;
-    }
-  }
-  
   return config;
-};
-
-// Helper function to get cookie (needs to be in module scope)
-const getCookie = (name: string): string | null => {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  return parts.length === 2 ? parts.pop()?.split(';').shift() || null : null;
 };
 
 const responseInterceptor = (response: AxiosResponse) => {

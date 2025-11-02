@@ -6,7 +6,6 @@ import ResetPassword from './components/ResetPassword';
 import Pricing from './pages/Pricing';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './contexts/AuthContext';
-import { useSessionRefresh } from './hooks/useSessionRefresh';
 import UserAppLayout from './layouts/UserAppLayout';
 import Home from './components/Home';
 import StockDownloader from './components/StockDownloader';
@@ -31,9 +30,6 @@ import AdminSettings from './pages/admin/AdminSettings';
 const App = () => {
   const { language } = useLanguage();
   const { isAuthenticated, isLoading } = useAuth();
-  
-  // Start session refresh hook to keep cookies fresh
-  useSessionRefresh();
 
   useEffect(() => {
     document.documentElement.lang = language;

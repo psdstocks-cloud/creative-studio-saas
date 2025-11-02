@@ -5,7 +5,6 @@ export interface BffSessionUser {
   email: string;
   roles: string[];
   metadata?: Record<string, unknown> | null;
-  balance: number;
 }
 
 export interface BffSessionResponse {
@@ -13,18 +12,15 @@ export interface BffSessionResponse {
 }
 
 export const fetchBffSession = async (): Promise<BffSessionResponse> => {
-  // Session endpoint reads from cookies directly - no auth header needed
-  const response = await apiFetch('/api/auth/session', {
+  return apiFetch('/api/auth/session', {
     method: 'GET',
-    auth: false,
+    auth: true,
   });
-  return response as BffSessionResponse;
 };
 
 export const destroyBffSession = async (): Promise<void> => {
-  // Use the new signout endpoint that clears cookies
-  await apiFetch('/api/auth/signout', {
-    method: 'POST',
-    auth: false, // Don't require auth to sign out
+  await apiFetch('/api/auth/session', {
+    method: 'DELETE',
+    auth: true,
   });
 };
