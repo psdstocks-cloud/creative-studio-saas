@@ -5,6 +5,7 @@ import React, {
   ReactNode,
   useCallback,
   useEffect,
+  useRef,
 } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { logger } from '../lib/logger';
@@ -153,21 +154,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const userRoles = user?.roles ?? EMPTY_ROLES;
-
+  const accessTokenRef = useRef<string | null>(null);
+  
   // Register token getter with API client
+  // FIXED: Keep ref in sync with token state
   useEffect(() => {
-    console.log('🔐 Registering auth token getter', { 
+    accessTokenRef.current = accessToken;
+    console.log('🔐 Token updated in ref', { 
       hasToken: !!accessToken,
       tokenLength: accessToken?.length || 0 
     });
+  }, [accessToken]);
+
+  // FIXED: Register token getter ONCE (stable - no flickering)
+  useEffect(() => {
+    const getToken = () => accessTokenRef.current;
     
-    setAuthTokenGetter(() => accessToken);
+    console.log('🔐 Registering STABLE token getter');
+    setAuthTokenGetter(getToken);
     
     return () => {
-      console.log('🔐 Unregistering auth token getter');
+      console.log('🔐 Unregistering token getter (component unmount only)');
       setAuthTokenGetter(() => null);
     };
-  }, [accessToken]);
+  }, []); // ← Empty deps! Runs once on mount
 
   const getStoredSession = useCallback((): Session | null => {
     if (typeof window === 'undefined' || !window.localStorage) {

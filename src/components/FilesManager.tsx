@@ -94,7 +94,11 @@ const FilesManager = () => {
     }
     const lowercasedQuery = searchQuery.toLowerCase().trim();
     return orders.filter((order) => {
-      const { id, site, debugid } = order.file_info;
+      // FIXED: Safe access to file_info properties
+      const fileInfo = order.file_info || {};
+      const id = fileInfo.id || '';
+      const site = fileInfo.site || '';
+      const debugid = fileInfo.debugid || '';
 
       // Check against file ID, site name, or debug ID
       if (
@@ -105,8 +109,8 @@ const FilesManager = () => {
         return true;
       }
 
-      // Heuristic for URL search: check if the query is a URL-like string that contains the file ID
-      if (lowercasedQuery.includes(id.toLowerCase()) && lowercasedQuery.length > id.length) {
+      // Heuristic for URL search
+      if (id && lowercasedQuery.includes(id.toLowerCase()) && lowercasedQuery.length > id.length) {
         return true;
       }
 
