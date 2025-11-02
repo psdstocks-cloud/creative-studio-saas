@@ -28,6 +28,12 @@ const ensureAdminClient = () => {
 };
 
 export async function requireUserFromAuthHeader(req) {
+  // Priority 1: Check if user was authenticated via cookies by attachSession middleware
+  if (req.user && req.user.id) {
+    return req.user;
+  }
+
+  // Priority 2: Try bearer token from Authorization header
   const authHeader = req.headers.authorization || '';
   let token = null;
 
