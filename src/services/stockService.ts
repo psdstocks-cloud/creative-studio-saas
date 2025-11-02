@@ -11,7 +11,8 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
   logger.debug('Parsing stock URL', { url, site, id });
 
   try {
-    const responseData = await apiFetch(`/stockinfo/${site}/${id}`) as any;
+    // FIXED: Added { auth: true } to require authentication
+    const responseData = await apiFetch(`/stockinfo/${site}/${id}`, { auth: true }) as any;
     logger.apiResponse(`/stockinfo/${site}/${id}`, responseData);
 
     // Check if response explicitly indicates failure
@@ -127,21 +128,24 @@ export const getStockFileInfo = async (url: string): Promise<StockFileInfo> => {
  * Places an order to download a stock media file.
  */
 export const orderStockFile = async (site: string, id: string): Promise<StockOrder> => {
-  return apiFetch(`/stockorder/${site}/${id}`) as Promise<StockOrder>;
+  // FIXED: Added { auth: true } to require authentication
+  return apiFetch(`/stockorder/${site}/${id}`, { auth: true }) as Promise<StockOrder>;
 };
 
 /**
  * Checks the status of a previously placed order.
  */
 export const checkOrderStatus = async (taskId: string): Promise<StockOrder> => {
-  return apiFetch(`/order/${taskId}/status`) as Promise<StockOrder>;
+  // FIXED: Added { auth: true } to require authentication
+  return apiFetch(`/order/${taskId}/status`, { auth: true }) as Promise<StockOrder>;
 };
 
 /**
  * Generates the final download link for a completed order.
  */
 export const generateDownloadLink = async (taskId: string): Promise<StockDownloadLink> => {
-  return apiFetch(`/v2/order/${taskId}/download`);
+  // FIXED: Added { auth: true } to require authentication
+  return apiFetch(`/v2/order/${taskId}/download`, { auth: true });
 };
 
 /**

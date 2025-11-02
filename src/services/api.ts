@@ -126,8 +126,16 @@ const getCookie = (name: string): string | null => {
   return parts.length === 2 ? parts.pop()?.split(';').shift() || null : null;
 };
 
+// NEW: Token retrieval function
+let getAuthTokenFn: (() => string | null) | null = null;
+
+export const setAuthTokenGetter = (fn: () => string | null) => {
+  getAuthTokenFn = fn;
+};
+
 const requestInterceptor: RequestInterceptor = async (config) => {
   const headers = config.headers ?? (config.headers = {});
+  
   if (!headers['X-Request-ID']) {
     headers['X-Request-ID'] = createRequestId();
   }
@@ -138,6 +146,19 @@ const requestInterceptor: RequestInterceptor = async (config) => {
     const csrfToken = getCookie('XSRF-TOKEN');
     if (csrfToken) {
       headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+  
+  // NEW: Add Bearer token if available and not already present
+  if (!headers['Authorization'] && getAuthTokenFn) {
+    const token = getAuthTokenFn();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log('🔐 Added Bearer token to request', {
+        url: config.url,
+        tokenLength: token.length,
+        tokenPrefix: token.substring(0, 30) + '...',
+      });
     }
   }
   
@@ -206,11 +227,17 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
 
   const upperMethod = method?.toString().toUpperCase() ?? 'GET';
 
-  if (auth) {
-    // Cookie-based authentication: cookies are sent automatically by browser
-    // withCredentials is already set on axios client
-    // No need to add Authorization header - backend reads from cookies
-    // Note: Supabase session will be empty with persistSession: false and cookieStorageAdapter
+  // NEW: If auth is explicitly requested, ensure token is added
+  if (auth && getAuthTokenFn) {
+    const token = getAuthTokenFn();
+    if (token) {
+      config.headers = {
+        ...config.headers,
+        'Authorization': `Bearer ${token}`,
+      };
+    } else {
+      console.warn('⚠️ Authentication requested but no token available');
+    }
   }
 
   if (body) {

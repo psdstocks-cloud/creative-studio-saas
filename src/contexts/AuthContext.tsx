@@ -13,6 +13,7 @@ import type { Session, PostgrestError } from '@supabase/supabase-js';
 import { deductBalance } from '../services/profileService';
 import { fetchBffSession, destroyBffSession, type BffSessionResponse } from '../services/bffSession';
 import { apiFetch } from '../services/api';
+import { setAuthTokenGetter } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -176,6 +177,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const userRoles = user?.roles ?? EMPTY_ROLES;
+
+  // Register token getter with API client
+  useEffect(() => {
+    console.log('🔐 Registering auth token getter', { 
+      hasToken: !!accessToken,
+      tokenLength: accessToken?.length || 0 
+    });
+    
+    setAuthTokenGetter(() => accessToken);
+    
+    return () => {
+      console.log('🔐 Unregistering auth token getter');
+      setAuthTokenGetter(() => null);
+    };
+  }, [accessToken]);
 
   const getStoredSession = useCallback((): Session | null => {
     if (typeof window === 'undefined' || !window.localStorage) {
@@ -349,78 +365,62 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             lastError =
               error instanceof Error
                 ? error
-                : createProfileFetchError(
-                    'Profile fetch failed due to unexpected exception',
-                    'unknown',
-                    {
-                      original: error,
-                    }
-                  );
+                : new Error('Unexpected error while fetching profile.');
+
+            if (attempt < MAX_PROFILE_FETCH_ATTEMPTS) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, PROFILE_FETCH_RETRY_DELAY_MS * attempt)
+              );
+              continue;
+            }
             break;
           } finally {
             clearTimeout(timeoutId);
           }
         }
 
-        if (lastError) {
-          const failureType = (lastError as ProfileFetchError)?.failureType ?? 'unknown';
-          console.warn('AuthProvider: Falling back to default profile after fetch failures', {
-            userId: session.user.id,
-            failureType,
-          });
-          return fallbackUser;
+        const errorToReport =
+          lastError instanceof Error
+            ? lastError
+            : new Error('Failed to fetch profile after multiple attempts.');
+
+        if (lastError && 'failureType' in lastError) {
+          const typedError = lastError as ProfileFetchError;
+
+          if (typedError.failureType === 'permission') {
+            console.warn(
+              'AuthProvider: Profile fetch failed due to permission issues. Using fallback user. (This is expected for new users with pending migrations.)',
+              {
+                userId: session.user.id,
+                code: typedError.code,
+                details: typedError.details,
+                hint: typedError.hint,
+              }
+            );
+            return fallbackUser;
+          } else if (typedError.failureType === 'timeout') {
+            console.warn(
+              'AuthProvider: Profile fetch timed out. Using fallback user.',
+              {
+                userId: session.user.id,
+              }
+            );
+            return fallbackUser;
+          }
         }
 
-        console.warn('AuthProvider: Profile fetch returned no data, using fallback profile', {
+        console.error('AuthProvider: Profile fetch failed with unrecoverable error', {
+          error: errorToReport.message,
           userId: session.user.id,
+          failureType: lastError && 'failureType' in lastError ? lastError.failureType : 'unknown',
         });
-        return fallbackUser;
+
+        throw errorToReport;
       } catch (error: any) {
-        console.error('AuthProvider: Error fetching profile:', error);
-        return session?.user ? buildFallbackUser(session.user) : null;
-      }
-    },
-    []
-  );
-
-  const synchronizeBffSession = useCallback(
-    async (candidate: User | null): Promise<User | null> => {
-      if (!candidate) {
-        return null;
-      }
-
-      try {
-        const timeoutPromise = new Promise<null>((_, reject) => {
-          setTimeout(() => reject(new Error('BFF session timeout')), 5000);
-        });
-
-        const response = await Promise.race([
-          fetchBffSession(),
-          timeoutPromise
-        ]);
-
-        const bffUser = response?.user;
-
-        if (!bffUser) {
-          console.warn('AuthProvider: BFF session returned no user, using Supabase session only');
-          return candidate;
-        }
-
-        const mergedRoles = mergeRoleSets(candidate.roles, bffUser.roles || []);
-        const metadata =
-          bffUser.metadata && typeof bffUser.metadata === 'object'
-            ? bffUser.metadata
-            : (candidate.metadata ?? null);
-
-        return {
-          ...candidate,
-          email: bffUser.email || candidate.email,
-          roles: mergedRoles,
-          metadata,
-        };
-      } catch (error) {
-        console.warn('AuthProvider: Failed to synchronize BFF session, continuing with Supabase session only', error);
-        return candidate;
+        logger.error('Unexpected exception in getAppUserFromSession', error);
+        throw error instanceof Error
+          ? error
+          : new Error('Unexpected exception while fetching user profile.');
       }
     },
     []
