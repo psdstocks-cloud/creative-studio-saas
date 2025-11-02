@@ -797,33 +797,34 @@ app.post('/api/auth/signin', async (req, res) => {
       return res.status(500).json({ message: 'Server configuration error' });
     }
 
-    // Try using anon key first, fall back to service role key if not available
-    const apiKey = SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!apiKey) {
+    // Create a Supabase client with anon key for signin
+    // The service_role key doesn't work for password auth, so we must use anon key
+    const supabaseAnonClient = supabaseAdminClient 
+      ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        })
+      : null;
+
+    if (!supabaseAnonClient) {
       return res.status(500).json({ message: 'Server configuration error' });
     }
 
-    // Authenticate with Supabase
-    const tokenUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
-    const tokenResponse = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'apikey': apiKey,
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: new URLSearchParams({ email, password, grant_type: 'password' }),
+    // Authenticate with Supabase using the client
+    const { data: authData, error: authError } = await supabaseAnonClient.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json().catch(() => ({}));
+    if (authError) {
       return res.status(401).json({ 
-        message: errorData.error_description || errorData.message || 'Invalid credentials' 
+        message: authError.message || 'Invalid credentials' 
       });
     }
 
-    const { access_token, user } = await tokenResponse.json();
+    const { access_token, user } = authData.session || {};
 
     if (!access_token || !user) {
       return res.status(401).json({ message: 'Failed to authenticate' });
