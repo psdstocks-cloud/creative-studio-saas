@@ -28,5 +28,7 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": ["src", "functions"],
+  "exclude": ["node_modules", "dist", "vendor", "**/legacy", "components", "contexts", "services", "shared"]
 }

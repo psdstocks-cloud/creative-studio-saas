@@ -1,3 +1,5 @@
+import { verifyCsrfToken } from './csrf';
+
 const ALLOWED_ORIGINS = [
   'https://creative-studio-saas.pages.dev',
   'http://localhost:5173',
@@ -24,8 +26,19 @@ export const handleOptions = (request: Request) => {
   const origin = getValidOrigin(request);
   const headers = buildCorsHeaders(origin);
   headers.set('Access-Control-Allow-Methods', 'GET,HEAD,POST,PATCH,PUT,DELETE,OPTIONS');
-  headers.set('Access-Control-Allow-Headers', request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization, X-Request-ID');
+  headers.set('Access-Control-Allow-Headers', request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization, X-Request-ID, X-CSRF-Token');
   return new Response(null, { status: 204, headers });
+};
+
+/**
+ * Verify CSRF token for state-changing requests
+ * Returns true if CSRF is valid or if request method doesn't need CSRF
+ */
+export const requireCsrf = (request: Request): true | Response => {
+  if (!verifyCsrfToken(request)) {
+    return errorResponse(request, 403, 'Invalid CSRF token');
+  }
+  return true;
 };
 
 export const jsonResponse = (request: Request, status: number, body: unknown) => {

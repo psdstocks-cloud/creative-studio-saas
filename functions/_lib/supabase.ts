@@ -513,13 +513,7 @@ export const getServiceSupabaseClient = (
 };
 
 export const extractAccessToken = (request: Request): string | null => {
-  const authHeader = request.headers.get('authorization');
-
-  if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
-    const token = authHeader.slice(7).trim();
-    return token;
-  }
-
+  // Priority 1: Check cookies first (primary authentication method)
   const cookieHeader = request.headers.get('cookie');
   const cookies = parseCookieHeader(cookieHeader);
 
@@ -540,6 +534,14 @@ export const extractAccessToken = (request: Request): string | null => {
     if (SUPABASE_ACCESS_COOKIE_PATTERNS.some((pattern) => pattern.test(normalizedName))) {
       return value;
     }
+  }
+
+  // Priority 2: Check Authorization header (fallback for API clients)
+  const authHeader = request.headers.get('authorization');
+
+  if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim();
+    return token;
   }
 
   return null;

@@ -1,4 +1,4 @@
-import { errorResponse, handleOptions, jsonResponse } from '../../_lib/http';
+import { errorResponse, handleOptions, jsonResponse, requireCsrf } from '../../_lib/http';
 import { requireUser, type SupabaseEnv } from '../../_lib/supabase';
 
 interface EnvBindings extends SupabaseEnv {}
@@ -12,6 +12,12 @@ export const onRequest = async ({ request, env, params }: { request: Request; en
 
   if (request.method !== 'PATCH') {
     return errorResponse(request, 405, 'Method Not Allowed');
+  }
+
+  // Verify CSRF token
+  const csrfCheck = requireCsrf(request);
+  if (csrfCheck !== true) {
+    return csrfCheck;
   }
 
   const taskId = params?.taskId;

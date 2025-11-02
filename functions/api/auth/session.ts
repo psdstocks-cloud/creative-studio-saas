@@ -1,4 +1,6 @@
-import { extractAccessToken, type SupabaseEnv, type User } from '../../_lib/supabase';
+import { extractAccessToken, type SupabaseEnv, type User, getServiceSupabaseClient } from '../../_lib/supabase';
+import { serializeAuthCookie, getAuthCookieOptions } from '../../_lib/cookie';
+import { generateCsrfToken, serializeCsrfCookie, getCsrfTokenFromCookie } from '../../_lib/csrf';
 
 interface SessionEnv extends SupabaseEnv {}
 
@@ -24,10 +26,32 @@ const buildCorsHeaders = (origin: string) => {
   return headers;
 };
 
-const buildJsonResponse = (origin: string, status: number, body: unknown) => {
+const isDevelopment = (url: string): boolean => {
+  return url.includes('localhost') || url.includes('127.0.0.1');
+};
+
+const buildJsonResponse = (
+  origin: string,
+  status: number,
+  body: unknown,
+  shouldRefreshCookie = false,
+  accessToken?: string | null
+) => {
   const headers = buildCorsHeaders(origin);
   headers.set('Content-Type', 'application/json');
   headers.set('Cache-Control', 'no-store');
+
+  // Refresh cookie if we have a valid token
+  if (shouldRefreshCookie && accessToken) {
+    const dev = isDevelopment(origin);
+    const cookieValue = serializeAuthCookie('sb-access-token', accessToken, dev);
+    headers.append('Set-Cookie', `${cookieValue}; HttpOnly`);
+    
+    // Also refresh CSRF token
+    const csrfToken = generateCsrfToken();
+    const csrfCookie = serializeCsrfCookie(csrfToken, dev);
+    headers.append('Set-Cookie', csrfCookie);
+  }
 
   return new Response(JSON.stringify(body), {
     status,
@@ -163,15 +187,41 @@ export const onRequest = async ({
     // Extract roles from user metadata
     const roles = extractRolesFromUser(user);
 
+    // Fetch user balance from profiles table
+    let balance = 100; // Default fallback
+    try {
+      const supabase = getServiceSupabaseClient(env, accessToken);
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', user.id)
+        .single();
+
+      if (!profileError && profile) {
+        balance = Number(profile.balance) || 100;
+      }
+    } catch (balanceError) {
+      console.warn('Failed to fetch user balance from session', balanceError);
+      // Continue with default balance
+    }
+
     // Return user session in the format expected by the frontend
-    return buildJsonResponse(origin, 200, {
-      user: {
-        id: user.id,
-        email: user.email || '',
-        roles,
-        metadata: user.user_metadata || null,
+    // Refresh the cookie on each session check to extend expiration
+    return buildJsonResponse(
+      origin,
+      200,
+      {
+        user: {
+          id: user.id,
+          email: user.email || '',
+          roles,
+          metadata: user.user_metadata || null,
+          balance,
+        },
       },
-    });
+      true, // shouldRefreshCookie
+      accessToken
+    );
   } catch (error) {
     console.error('Session validation error:', error);
     // Return null user on any error to avoid blocking the frontend

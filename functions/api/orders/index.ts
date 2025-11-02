@@ -1,4 +1,4 @@
-import { jsonResponse, errorResponse, handleOptions } from '../../_lib/http';
+import { jsonResponse, errorResponse, handleOptions, requireCsrf } from '../../_lib/http';
 import { requireUser, type SupabaseEnv } from '../../_lib/supabase';
 import { fetchStockMetadata, normalizeStockInfo, parseAndValidateSourceUrl, type StockEnv } from '../../_lib/stock';
 
@@ -149,6 +149,11 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
   }
 
   if (request.method === 'POST') {
+    // Verify CSRF token
+    const csrfCheck = requireCsrf(request);
+    if (csrfCheck !== true) {
+      return csrfCheck;
+    }
     return handlePost(request, env);
   }
 
