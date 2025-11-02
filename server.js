@@ -193,6 +193,80 @@ const parseCookies = (cookieHeader) => {
   }, {});
 };
 
+// ---------------------------------------------------------------------------
+// Cookie auth helpers
+// ---------------------------------------------------------------------------
+
+const buildAuthCookie = (name, value, { isDeletion = false } = {}) => {
+  const parts = [`${name}=${isDeletion ? '' : encodeURIComponent(value)}`];
+  parts.push('Path=/');
+  parts.push('HttpOnly');
+  parts.push('SameSite=None'); // Required for cross-origin
+
+  if (IS_PROD) {
+    parts.push('Secure');
+  }
+
+  if (isDeletion) {
+    parts.push('Max-Age=0');
+    parts.push('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  } else {
+    parts.push('Max-Age=259200'); // 3 days
+  }
+
+  return parts.join('; ');
+};
+
+const generateCsrfToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
+const buildCsrfCookie = (token, { isDeletion = false } = {}) => {
+  const parts = [`XSRF-TOKEN=${isDeletion ? '' : token}`];
+  parts.push('Path=/');
+  // Note: NOT HttpOnly so JavaScript can read it
+  parts.push('SameSite=None'); // Required for cross-origin
+
+  if (IS_PROD) {
+    parts.push('Secure');
+  }
+
+  if (isDeletion) {
+    parts.push('Max-Age=0');
+    parts.push('Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  } else {
+    parts.push('Max-Age=259200'); // 3 days
+  }
+
+  return parts.join('; ');
+};
+
+const verifyCsrfToken = (req) => {
+  // Only verify CSRF for state-changing methods
+  const method = req.method.toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return true;
+  }
+
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieToken = cookies['XSRF-TOKEN'];
+  const headerToken = req.headers['x-csrf-token'] || req.headers['x-xsrf-token'];
+
+  if (!cookieToken || !headerToken) {
+    return false;
+  }
+
+  // Constant-time comparison to prevent timing attacks
+  let result = 0;
+  if (cookieToken.length !== headerToken.length) {
+    return false;
+  }
+  for (let i = 0; i < cookieToken.length; i++) {
+    result |= cookieToken.charCodeAt(i) ^ headerToken.charCodeAt(i);
+  }
+  return result === 0;
+};
+
 const buildSessionCookie = (sessionId, { expiresAt, isDeletion = false } = {}) => {
   const parts = [`${SESSION_COOKIE_NAME}=${isDeletion ? '' : encodeURIComponent(sessionId)}`];
   parts.push('Path=/');
@@ -482,8 +556,26 @@ const requestLogger = (req, res, next) => {
 const attachSession = async (req, res, next) => {
   try {
     const cookies = parseCookies(req.headers.cookie);
-    const sessionId = cookies[SESSION_COOKIE_NAME];
+    
+    // Priority 1: Check for cookie-based auth (new method)
+    const accessToken = cookies['sb-access-token'];
+    if (accessToken) {
+      try {
+        const verifiedUser = await verifySupabaseAccessToken(accessToken);
+        if (verifiedUser) {
+          req.user = verifiedUser;
+          // Don't refresh cookies in middleware - only in explicit session endpoint
+          next();
+          return;
+        }
+      } catch (error) {
+        console.warn('Failed to verify cookie auth in middleware:', error);
+        // Continue to fallback methods
+      }
+    }
 
+    // Priority 2: Check for old session-based auth
+    const sessionId = cookies[SESSION_COOKIE_NAME];
     if (sessionId && sessionStore.has(sessionId)) {
       const session = sessionStore.get(sessionId);
       if (session.expiresAt <= Date.now()) {
@@ -497,6 +589,7 @@ const attachSession = async (req, res, next) => {
       }
     }
 
+    // Priority 3: Check for bearer token (API clients)
     if (!req.user) {
       const authHeader = req.headers['authorization'];
       const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
@@ -577,6 +670,29 @@ const extractAuditReason = (req) => {
   }
 
   return null;
+};
+
+const requireCsrf = (req, res, next) => {
+  // Skip CSRF check for safe methods
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    next();
+    return;
+  }
+
+  // Skip CSRF check if using bearer token (API clients)
+  const authHeader = req.headers['authorization'];
+  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    next();
+    return;
+  }
+
+  // Verify CSRF token
+  if (!verifyCsrfToken(req)) {
+    res.status(403).json({ message: 'Invalid CSRF token' });
+    return;
+  }
+
+  next();
 };
 
 const requireAuditReason = (req, res, next) => {
@@ -662,16 +778,200 @@ app.use('/api', generalRateLimiter);
 // Authentication endpoints
 // ---------------------------------------------------------------------------
 
-app.get('/api/auth/session', requireAuth, (req, res) => {
+// POST /api/auth/signin - Authenticate and set httpOnly cookies
+app.post('/api/auth/signin', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required' });
+  }
+
+  try {
+    // Get anon key for authentication
+    const SUPABASE_ANON_KEY = 
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      null;
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+
+    // Authenticate with Supabase
+    const tokenUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+    const tokenResponse = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: new URLSearchParams({ email, password, grant_type: 'password' }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.json().catch(() => ({}));
+      return res.status(401).json({ 
+        message: errorData.error_description || errorData.message || 'Invalid credentials' 
+      });
+    }
+
+    const { access_token, user } = await tokenResponse.json();
+
+    if (!access_token || !user) {
+      return res.status(401).json({ message: 'Failed to authenticate' });
+    }
+
+    // Extract roles
+    const roles = new Set([
+      'user', // Default role
+    ]);
+
+    if (user.app_metadata?.roles) {
+      user.app_metadata.roles.forEach(role => roles.add(role.toLowerCase()));
+    }
+    if (user.user_metadata?.roles) {
+      user.user_metadata.roles.forEach(role => roles.add(role.toLowerCase()));
+    }
+
+    // Fetch balance from profiles table
+    let balance = 100;
+    try {
+      const supabaseAdmin = ensureSupabaseAdminClient();
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('balance')
+        .eq('id', user.id)
+        .single();
+      
+      if (profile) {
+        balance = Number(profile.balance) || 100;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch user balance on signin:', error);
+      // Continue with default balance
+    }
+
+    // Set auth cookie (HttpOnly)
+    res.append('Set-Cookie', buildAuthCookie('sb-access-token', access_token));
+
+    // Generate and set CSRF token (non-HttpOnly)
+    const csrfToken = generateCsrfToken();
+    res.append('Set-Cookie', buildCsrfCookie(csrfToken));
+
+    // Audit log
+    writeAuditEntry({
+      requestId: req.requestId,
+      action: 'auth.signin.cookie',
+      actor: { id: user.id, email: user.email },
+      method: req.method,
+      path: req.originalUrl,
+      status: 200,
+    });
+
+    // Return user data without exposing the token
+    return res.json({
+      user: {
+        id: user.id,
+        email: user.email || '',
+        roles: Array.from(roles),
+        metadata: user.user_metadata || null,
+        balance,
+      },
+    });
+  } catch (error) {
+    console.error('Sign in error:', error);
+    return res.status(500).json({ message: 'Authentication failed' });
+  }
+});
+
+app.get('/api/auth/session', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({
-    user: {
-      id: req.user.id,
-      email: req.user.email,
-      roles: req.user.roles,
-      metadata: req.user.metadata || {},
-    },
+  
+  // Try to get access token from cookies first
+  const cookies = parseCookies(req.headers.cookie);
+  const accessToken = cookies['sb-access-token'];
+
+  if (accessToken) {
+    try {
+      const verifiedUser = await verifySupabaseAccessToken(accessToken);
+      
+      if (verifiedUser) {
+        // Fetch balance
+        let balance = 100;
+        try {
+          const supabaseAdmin = ensureSupabaseAdminClient();
+          const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('balance')
+            .eq('id', verifiedUser.id)
+            .single();
+          
+          if (profile) {
+            balance = Number(profile.balance) || 100;
+          }
+        } catch (error) {
+          console.warn('Failed to fetch user balance from session:', error);
+        }
+
+        // Refresh cookies
+        res.append('Set-Cookie', buildAuthCookie('sb-access-token', accessToken));
+        const csrfToken = generateCsrfToken();
+        res.append('Set-Cookie', buildCsrfCookie(csrfToken));
+
+        return res.json({
+          user: {
+            id: verifiedUser.id,
+            email: verifiedUser.email,
+            roles: verifiedUser.roles,
+            metadata: verifiedUser.metadata,
+            balance,
+          },
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to verify cookie auth:', error);
+    }
+  }
+
+  // Fallback to old session-based auth if available
+  if (req.user) {
+    return res.json({
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        roles: req.user.roles,
+        metadata: req.user.metadata || {},
+      },
+    });
+  }
+
+  // No valid session
+  return res.json({ user: null });
+});
+
+// POST /api/auth/signout - Clear all cookies
+app.post('/api/auth/signout', async (req, res) => {
+  // Clear cookie-based auth
+  res.append('Set-Cookie', buildAuthCookie('sb-access-token', '', { isDeletion: true }));
+  res.append('Set-Cookie', buildCsrfCookie('', { isDeletion: true }));
+
+  // Clear old session-based auth if exists
+  if (req.session) {
+    destroySession(req.session.id);
+    res.append('Set-Cookie', buildSessionCookie('', { isDeletion: true }));
+  }
+
+  writeAuditEntry({
+    requestId: req.requestId,
+    action: 'auth.signout',
+    actor: req.user ? { id: req.user.id, email: req.user.email } : { id: 'anonymous' },
+    method: req.method,
+    path: req.originalUrl,
+    status: 200,
   });
+
+  return res.json({ message: 'Signed out successfully' });
 });
 
 app.delete('/api/auth/session', requireAuth, (req, res) => {

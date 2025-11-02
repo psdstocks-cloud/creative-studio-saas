@@ -11,7 +11,8 @@ import { logger } from '../lib/logger';
 import type { User } from '../types';
 import type { Session, PostgrestError } from '@supabase/supabase-js';
 import { deductBalance } from '../services/profileService';
-import { fetchBffSession, destroyBffSession } from '../services/bffSession';
+import { fetchBffSession, destroyBffSession, type BffSessionResponse } from '../services/bffSession';
+import { apiFetch } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -466,9 +467,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         timeoutId = setTimeout(handleInitializationTimeout, 15000);
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        // Check for session via cookies via BFF endpoint
+        const bffSession = await fetchBffSession();
 
         if (!mounted) {
           return;
@@ -479,28 +479,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           timeoutId = undefined;
         }
 
-        setAccessToken(session?.access_token ?? null);
+        if (bffSession?.user) {
+          // User is authenticated via cookies
+          const appUser: User = {
+            id: bffSession.user.id,
+            email: bffSession.user.email,
+            roles: bffSession.user.roles,
+            metadata: bffSession.user.metadata,
+            balance: bffSession.user.balance || 100, // Use balance from session
+          };
 
-        if (session?.user) {
-          // FAST PATH: Use JWT data immediately
-          const fallback = buildFallbackUser(session.user);
-          const hydratedFallback = await synchronizeBffSession(fallback);
-          if (mounted) {
-            setUser(hydratedFallback);
-            setIsLoading(false);
-          }
-
-          // Fetch profile in background
-          getAppUserFromSession(session)
-            .then(async (appUser) => {
-              if (mounted && appUser) {
-                const hydratedUser = await synchronizeBffSession(appUser);
-                setUser(hydratedUser);
-              }
-            })
-            .catch((profileError) => {
-              console.warn('AuthProvider: Background profile fetch failed, keeping JWT data', profileError);
-            });
+          // Set user immediately
+          setUser(appUser);
+          // Access token is in httpOnly cookie, not accessible in browser
+          setAccessToken(null);
+          setIsLoading(false);
         } else {
           setUser(null);
           setAccessToken(null);
@@ -517,28 +510,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return;
         }
 
-        const storedSession = getStoredSession();
-        if (storedSession?.user) {
-          const fallbackUser = buildFallbackUser(storedSession.user);
-          try {
-            const hydratedFallback = await synchronizeBffSession(fallbackUser);
-            if (mounted) {
-              setUser(hydratedFallback);
-            }
-          } catch (error) {
-            console.warn('AuthProvider: Failed to hydrate stored session after initialization error', error);
-            if (mounted) {
-              setUser(fallbackUser);
-            }
-          }
-        } else if (mounted) {
-          setUser(null);
-          setAccessToken(null);
-        }
-
-        if (mounted) {
-          setIsLoading(false);
-        }
+        setUser(null);
+        setAccessToken(null);
+        setIsLoading(false);
       }
     }
 
@@ -591,50 +565,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signIn = useCallback(
     async (email: string, password: string): Promise<void> => {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        throw new Error(error.message || 'Invalid credentials. Please try again.');
-      }
-
-      let session: Session | null = data.session ?? null;
-
       try {
-        session = session ?? (await supabase.auth.getSession()).data.session;
+        // Use backend sign-in endpoint that sets httpOnly cookies
+        const response = await apiFetch('/api/auth/signin', {
+          method: 'POST',
+          body: { email, password },
+          auth: false,
+        }) as BffSessionResponse;
 
-        if (!session) {
-          throw new Error('No active session found after sign in.');
+        if (!response || !response.user) {
+          throw new Error('Invalid credentials. Please try again.');
         }
 
-        setAccessToken(session?.access_token ?? null);
-        const appUser = await getAppUserFromSession(session);
-        const hydratedUser = await synchronizeBffSession(appUser);
+        // Convert BFF user to app user
+        const appUser: User = {
+          id: response.user.id,
+          email: response.user.email,
+          roles: response.user.roles,
+          metadata: response.user.metadata,
+          balance: response.user.balance || 100, // Use balance from response
+        };
 
-        setUser(hydratedUser);
-      } catch (profileError: any) {
-        const failureType = (profileError as ProfileFetchError)?.failureType ?? 'unknown';
-        console.error('AuthProvider: Failed to resolve profile after sign in', profileError);
-
-        if (session?.user) {
-          console.warn('AuthProvider: Using fallback profile after sign-in due to profile error', {
-            failureType,
-            userId: session.user.id,
-          });
-          const fallback = buildFallbackUser(session.user);
-          const hydratedFallback = await synchronizeBffSession(fallback);
-          setUser(hydratedFallback);
-          return;
-        }
-
-        if (failureType !== 'timeout' && failureType !== 'permission') {
-          await supabase.auth.signOut();
-        }
-
-        const message = profileError?.message || 'Could not complete sign in.';
+        // Set the user immediately
+        setUser(appUser);
+        // Note: access token is in httpOnly cookie, not accessible in browser
+        setAccessToken(null);
+      } catch (error: any) {
+        console.error('AuthProvider: Sign in error', error);
+        const message = error?.message || 'Could not complete sign in.';
         throw new Error(message);
       }
     },
-    [getAppUserFromSession, synchronizeBffSession]
+    []
   );
 
   const signUp = useCallback(async (email: string, password: string): Promise<void> => {

@@ -38,7 +38,7 @@ function setCorsHeaders(res, origin, allowedOrigins) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Request-ID, X-Audit-Reason'
+    'Content-Type, Authorization, X-Request-ID, X-Audit-Reason, X-CSRF-Token, X-XSRF-Token'
   );
   res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
 }
