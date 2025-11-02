@@ -562,15 +562,23 @@ const attachSession = async (req, res, next) => {
     if (accessToken) {
       try {
         const verifiedUser = await verifySupabaseAccessToken(accessToken);
-        if (verifiedUser) {
+        if (verifiedUser && verifiedUser.id) {
           req.user = verifiedUser;
           // Don't refresh cookies in middleware - only in explicit session endpoint
           next();
           return;
+        } else {
+          console.warn('Cookie auth: verifiedUser missing or has no id', { hasVerifiedUser: !!verifiedUser, hasId: !!verifiedUser?.id });
         }
       } catch (error) {
         console.warn('Failed to verify cookie auth in middleware:', error);
         // Continue to fallback methods
+      }
+    } else {
+      // Debug: log available cookies if no access token found
+      const cookieNames = Object.keys(cookies);
+      if (cookieNames.length > 0) {
+        console.warn('Cookie auth: sb-access-token not found in cookies', { availableCookies: cookieNames });
       }
     }
 

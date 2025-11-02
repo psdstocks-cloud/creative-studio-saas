@@ -33,6 +33,16 @@ export async function requireUserFromAuthHeader(req) {
     return req.user;
   }
 
+  // Debug: log why cookie auth didn't work
+  if (req.user && !req.user.id) {
+    console.warn('requireUserFromAuthHeader: req.user exists but has no id', { userKeys: Object.keys(req.user || {}) });
+  } else if (!req.user) {
+    console.warn('requireUserFromAuthHeader: req.user not set by attachSession', { 
+      hasCookies: !!req.headers.cookie,
+      cookieHeader: req.headers.cookie ? 'present' : 'missing'
+    });
+  }
+
   // Priority 2: Try bearer token from Authorization header
   const authHeader = req.headers.authorization || '';
   let token = null;
