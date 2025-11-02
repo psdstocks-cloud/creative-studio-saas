@@ -6,8 +6,9 @@ import type { Order } from '../../types';
 export const ORDERS_QUERY_KEY = ['orders'] as const;
 
 export const useOrdersQuery = (enabled: boolean) => {
-  const { accessToken } = useAuth();
-  const shouldFetch = Boolean(accessToken) && enabled;
+  const { user, isAuthenticated } = useAuth();
+  // With cookie auth, we check isAuthenticated instead of accessToken
+  const shouldFetch = isAuthenticated && Boolean(user?.id) && enabled;
 
   return useQuery<Order[]>({
     queryKey: ORDERS_QUERY_KEY,

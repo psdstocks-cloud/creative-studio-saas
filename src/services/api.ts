@@ -207,42 +207,10 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
   const upperMethod = method?.toString().toUpperCase() ?? 'GET';
 
   if (auth) {
-    try {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        const normalizedError = new Error(
-          sessionError.message || 'Unable to authenticate request.'
-        );
-        (normalizedError as Error & { status?: number }).status = 401;
-        throw normalizedError;
-      }
-
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) {
-        const authError = new Error('You must be signed in to perform this action.');
-        (authError as Error & { status?: number }).status = 401;
-        throw authError;
-      }
-
-      config.headers = {
-        ...config.headers,
-        Authorization: `Bearer ${accessToken}`,
-      };
-    } catch (error) {
-      const normalizedError =
-        error instanceof Error ? error : new Error('Unable to authenticate request.');
-
-      if (typeof (normalizedError as { status?: number }).status !== 'number') {
-        (normalizedError as { status?: number }).status = 401;
-      }
-
-      if (!normalizedError.message) {
-        normalizedError.message = 'Unable to authenticate request.';
-      }
-
-      throw normalizedError;
-    }
+    // Cookie-based authentication: cookies are sent automatically by browser
+    // withCredentials is already set on axios client
+    // No need to add Authorization header - backend reads from cookies
+    // Note: Supabase session will be empty with persistSession: false and cookieStorageAdapter
   }
 
   if (body) {

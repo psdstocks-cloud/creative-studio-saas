@@ -170,7 +170,7 @@ const RecentOrders = ({
 
 const StockDownloader = () => {
   const { t } = useLanguage();
-  const { user, updateUserBalance, accessToken } = useAuth();
+  const { user, updateUserBalance } = useAuth();
 
   const [mode, setMode] = useState<Mode>('single');
 
@@ -193,7 +193,7 @@ const StockDownloader = () => {
     data: recentOrders = [],
     isFetching: isOrdersFetching,
     error: ordersError,
-  } = useOrdersQuery(Boolean(user?.id) && Boolean(accessToken));
+  } = useOrdersQuery(Boolean(user?.id));
   const [error, setError] = useState<string | null>(null);
 
   const setRecentOrders = useCallback(
