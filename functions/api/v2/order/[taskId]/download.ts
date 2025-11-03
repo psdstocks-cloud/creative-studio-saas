@@ -1,6 +1,6 @@
-import { handleOptions, jsonResponse, errorResponse } from '../../../../../_lib/http';
-import { requireUser, type SupabaseEnv } from '../../../../../_lib/supabase';
-import type { StockEnv } from '../../../../../_lib/stock';
+import { handleOptions, jsonResponse, errorResponse } from '../../../../_lib/http';
+import { requireUser, type SupabaseEnv } from '../../../../_lib/supabase';
+import type { StockEnv } from '../../../../_lib/stock';
 
 interface EnvBindings extends SupabaseEnv, StockEnv {}
 
