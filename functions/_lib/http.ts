@@ -41,9 +41,14 @@ export const requireCsrf = (request: Request): true | Response => {
   return true;
 };
 
-export const jsonResponse = (request: Request, status: number, body: unknown) => {
+export const jsonResponse = (request: Request, status: number, body: unknown, customHeaders?: Headers) => {
   const origin = getValidOrigin(request);
   const headers = buildCorsHeaders(origin);
+  if (customHeaders) {
+    customHeaders.forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
   headers.set('Content-Type', 'application/json');
   headers.set('Cache-Control', 'no-store');
   return new Response(JSON.stringify(body), { status, headers });
