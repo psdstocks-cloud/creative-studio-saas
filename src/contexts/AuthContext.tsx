@@ -42,11 +42,34 @@ function resolveApiUrl(path: string): string {
  */
 async function bffGet<T>(url: string): Promise<T> {
   const absoluteUrl = resolveApiUrl(url);
-  const res = await fetch(absoluteUrl, { credentials: 'include' });
-  if (!res.ok) {
-    throw new Error(`GET ${url} failed: ${res.status}`);
+  try {
+    const res = await fetch(absoluteUrl, { credentials: 'include' });
+    if (!res.ok) {
+      // Try to parse error message from response
+      try {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `GET ${url} failed: ${res.status}`);
+      } catch {
+        throw new Error(`GET ${url} failed: ${res.status}`);
+      }
+    }
+    try {
+      return await res.json() as Promise<T>;
+    } catch (jsonError) {
+      // If JSON parsing fails, return null for session endpoint
+      if (url.includes('/api/auth/session')) {
+        return { user: null } as T;
+      }
+      throw new Error(`Invalid JSON response from ${url}`);
+    }
+  } catch (error) {
+    // If fetch itself fails (network error), handle gracefully
+    if (url.includes('/api/auth/session')) {
+      // For session endpoint, return null user instead of throwing
+      return { user: null } as T;
+    }
+    throw error;
   }
-  return res.json() as Promise<T>;
 }
 
 async function bffPost<T>(url: string, body?: unknown): Promise<T> {
