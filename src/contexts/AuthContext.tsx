@@ -5,13 +5,18 @@ import React, {
   ReactNode,
   useCallback,
   useEffect,
+  useRef,
 } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { logger } from '../lib/logger';
 import type { User } from '../types';
+import type { Session, PostgrestError } from '@supabase/supabase-js';
 import { deductBalance } from '../services/profileService';
+import { setAuthTokenGetter } from '../services/api';
 
-// Simple helper to call BFF with cookies
+/**
+ * Small BFF helpers that ALWAYS include cookies (HttpOnly).
+ */
 async function bffGet<T>(url: string): Promise<T> {
   const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) {
@@ -27,12 +32,13 @@ async function bffPost<T>(url: string, body?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
+  // BFF returns JSON on errors too
+  const payload = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const message = (err && err.message) || `POST ${url} failed: ${res.status}`;
+    const message = (payload && (payload.message || payload.error)) || `POST ${url} failed: ${res.status}`;
     throw new Error(message);
   }
-  return res.json() as Promise<T>;
+  return payload as T;
 }
 
 interface AuthContextType {
@@ -49,6 +55,8 @@ interface AuthContextType {
   resendConfirmationEmail: (email: string) => Promise<void>;
   hasRole: (roles: string | string[]) => boolean;
   userRoles: string[];
+  accessToken: string | null;
+  getAccessToken: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,120 +65,351 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+type ProfileFetchFailureType = 'timeout' | 'permission' | 'missing' | 'unknown';
+
+interface ProfileFetchError extends Error {
+  failureType: ProfileFetchFailureType;
+  code?: string;
+  details?: string | null;
+  hint?: string | null;
+  status?: number;
+  original?: unknown;
+}
+
+const PROFILE_FETCH_TIMEOUT_MS = 5000;
+const PROFILE_FETCH_RETRY_DELAY_MS = 500;
+const MAX_PROFILE_FETCH_ATTEMPTS = 2;
 const DEFAULT_ROLE = 'user';
 const EMPTY_ROLES: string[] = [];
+const SUPABASE_STORAGE_KEYS = ['creative-studio-auth', 'supabase.auth.token'];
 
 const normalizeRoleInput = (input: unknown): string[] => {
-  if (!input) return [];
+  if (!input) {
+    return [];
+  }
+
   if (Array.isArray(input)) {
     return input
       .map((role) => (typeof role === 'string' ? role : String(role)))
       .map((role) => role.trim())
       .filter(Boolean);
   }
+
   if (typeof input === 'string') {
     return input
       .split(',')
       .map((role) => role.trim())
       .filter(Boolean);
   }
+
   return [String(input)];
 };
 
-const hasRoleInternal = (userRoles: string[], rolesToCheck: string | string[]) => {
-  const required = Array.isArray(rolesToCheck) ? rolesToCheck : [rolesToCheck];
-  if (required.length === 0) return true;
-  const set = new Set(userRoles.map((r) => r.toLowerCase()));
-  return required.some((r) => set.has(r.toLowerCase()));
+const extractRolesFromSession = (sessionUser: Session['user']): string[] => {
+  const rawRoles = [
+    ...normalizeRoleInput(sessionUser.app_metadata?.roles),
+    ...normalizeRoleInput(sessionUser.app_metadata?.role),
+    ...normalizeRoleInput(sessionUser.user_metadata?.roles),
+    ...normalizeRoleInput(sessionUser.user_metadata?.role),
+  ];
+
+  const normalized = new Set<string>(rawRoles.map((role) => role.toLowerCase()));
+  normalized.add(DEFAULT_ROLE);
+
+  return Array.from(normalized);
+};
+
+const buildFallbackUser = (sessionUser: Session['user']): User => ({
+  id: sessionUser.id,
+  email: sessionUser.email || 'No email found',
+  balance: 100,
+  roles: extractRolesFromSession(sessionUser),
+  metadata: null,
+});
+
+const classifyPostgrestError = (error: PostgrestError | null): ProfileFetchFailureType => {
+  if (!error) {
+    return 'unknown';
+  }
+
+  if (error.code === 'PGRST116') {
+    return 'missing';
+  }
+
+  if (error.code === 'PGRST301' || error.code === '42501') {
+    return 'permission';
+  }
+
+  const combined =
+    `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+
+  if (
+    combined.includes('permission denied') ||
+    combined.includes('row-level security') ||
+    combined.includes('row level security') ||
+    combined.includes('not authorized')
+  ) {
+    return 'permission';
+  }
+
+  return 'unknown';
+};
+
+const createProfileFetchError = (
+  message: string,
+  failureType: ProfileFetchFailureType,
+  meta: {
+    code?: string;
+    details?: string | null;
+    hint?: string | null;
+    status?: number;
+    original?: unknown;
+  } = {}
+): ProfileFetchError => {
+  const error = new Error(message) as ProfileFetchError;
+  error.failureType = failureType;
+  error.code = meta.code;
+  error.details = typeof meta.details === 'undefined' ? null : meta.details;
+  error.hint = typeof meta.hint === 'undefined' ? null : meta.hint;
+  error.status = meta.status;
+  error.original = meta.original;
+  return error;
 };
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Keep these for API compatibility but do not use tokens (HttpOnly cookies instead)
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const userRoles = user?.roles ?? EMPTY_ROLES;
+  const accessTokenRef = useRef<string | null>(null);
 
-  // ---- Init from BFF cookie session
+  // Keep ref in sync (no logs)
+  useEffect(() => {
+    accessTokenRef.current = accessToken;
+  }, [accessToken]);
+
+  // Register token getter ONCE — but return null to force cookie auth everywhere.
+  useEffect(() => {
+    setAuthTokenGetter(() => null);
+    return () => {
+      setAuthTokenGetter(() => null);
+    };
+  }, []);
+
+  const getStoredSession = useCallback((): Session | null => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return null;
+    }
+
+    for (const key of SUPABASE_STORAGE_KEYS) {
+      try {
+        const rawValue = window.localStorage.getItem(key);
+        if (!rawValue) {
+          continue;
+        }
+
+        const parsedValue: unknown = JSON.parse(rawValue);
+        const candidateSessions: Array<unknown> = [];
+
+        if (parsedValue && typeof parsedValue === 'object') {
+          const recordValue = parsedValue as Record<string, unknown>;
+
+          if ('currentSession' in recordValue) {
+            candidateSessions.push((recordValue as { currentSession?: unknown }).currentSession);
+          }
+
+          if ('session' in recordValue) {
+            candidateSessions.push((recordValue as { session?: unknown }).session);
+          }
+
+          candidateSessions.push(recordValue);
+        }
+
+        for (const candidate of candidateSessions) {
+          if (candidate && typeof candidate === 'object') {
+            const potentialSession = candidate as Partial<Session>;
+            if (potentialSession.user && typeof potentialSession.user === 'object') {
+              return potentialSession as Session;
+            }
+          }
+        }
+      } catch (error) {
+        // Keep quiet; not critical in cookie mode
+      }
+    }
+
+    return null;
+  }, []);
+
+  /**
+   * IMPORTANT CHANGE:
+   * Instead of reading profile directly from Supabase with a browser token,
+   * we hydrate from the BFF session (HttpOnly cookies) which already returns balance & roles.
+   * This keeps the rest of your function shapes intact.
+   */
+  const getAppUserFromSession = useCallback(
+    async (_session: Session | null): Promise<User | null> => {
+      try {
+        const data = await bffGet<{ user: User | null }>('/api/auth/session');
+        if (!data?.user) return null;
+
+        const normalized: User = {
+          id: data.user.id,
+          email: data.user.email || 'No email found',
+          roles: Array.isArray(data.user.roles) && data.user.roles.length
+            ? data.user.roles
+            : [DEFAULT_ROLE],
+          balance: Number((data.user as any).balance ?? 100),
+          metadata: (data.user as any).metadata ?? null,
+        };
+
+        return normalized;
+      } catch (error) {
+        logger.error('Failed to fetch user from BFF session', error);
+        return null;
+      }
+    },
+    []
+  );
+
+  // Initialize from BFF cookie session to survive page refresh and cross-origin
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
+    async function initializeAuth() {
       try {
         const data = await bffGet<{ user: User | null }>('/api/auth/session');
         if (!mounted) return;
 
-        if (data.user) {
-          setUser({
+        if (data?.user) {
+          const normalized: User = {
             id: data.user.id,
-            email: data.user.email,
-            roles: data.user.roles && data.user.roles.length
+            email: data.user.email || 'No email found',
+            roles: Array.isArray(data.user.roles) && data.user.roles.length
               ? data.user.roles
               : [DEFAULT_ROLE],
-            metadata: data.user.metadata ?? null,
-            balance: Number(data.user.balance ?? 100),
+            balance: Number((data.user as any).balance ?? 100),
+            metadata: (data.user as any).metadata ?? null,
+          };
+          setUser(normalized);
+          setAccessToken(null); // cookie-auth only
+        } else {
+          setUser(null);
+          setAccessToken(null);
+        }
+      } catch {
+        setUser(null);
+        setAccessToken(null);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    }
+
+    void initializeAuth();
+
+    // Keep listener minimal (no logs); on any auth change, just re-pull from BFF
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async () => {
+      try {
+        const data = await bffGet<{ user: User | null }>('/api/auth/session');
+        if (data?.user) {
+          setUser({
+            id: data.user.id,
+            email: data.user.email || 'No email found',
+            roles: Array.isArray(data.user.roles) && data.user.roles.length
+              ? data.user.roles
+              : [DEFAULT_ROLE],
+            balance: Number((data.user as any).balance ?? 100),
+            metadata: (data.user as any).metadata ?? null,
           });
         } else {
           setUser(null);
         }
-      } catch (e) {
+        setAccessToken(null);
+      } catch {
         setUser(null);
-      } finally {
-        if (mounted) setIsLoading(false);
+        setAccessToken(null);
       }
-    })();
+    });
 
     return () => {
       mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
-  // ---- Actions
+  // SIGN IN via BFF — sets HttpOnly cookies; no tokens stored on client
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<void> => {
+      const result = await bffPost<{ user: User }>('/api/auth/signin', { email, password });
+      setUser({
+        id: result.user.id,
+        email: result.user.email || 'No email found',
+        roles: Array.isArray(result.user.roles) && result.user.roles.length
+          ? result.user.roles
+          : [DEFAULT_ROLE],
+        balance: Number((result.user as any).balance ?? 100),
+        metadata: (result.user as any).metadata ?? null,
+      });
+      setAccessToken(null);
+    },
+    []
+  );
 
-  const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    const result = await bffPost<{ user: User }>('/api/auth/signin', { email, password });
-    setUser({
-      id: result.user.id,
-      email: result.user.email,
-      roles: result.user.roles && result.user.roles.length
-        ? result.user.roles
-        : [DEFAULT_ROLE],
-      metadata: result.user.metadata ?? null,
-      balance: Number(result.user.balance ?? 100),
-    });
-  }, []);
-
-  // Keep Supabase-only sign up (email confirmation flow). This does not persist tokens locally.
+  // Optionally keep Supabase sign-up flow (email confirmation); does not persist token locally.
   const signUp = useCallback(async (email: string, password: string): Promise<void> => {
     const { error } = await supabase.auth.signUp({ email, password });
-    if (error) throw new Error(error.message || 'Could not sign up user.');
+    if (error) {
+      throw new Error(error.message || 'Could not sign up user.');
+    }
   }, []);
 
+  // SIGN OUT via BFF — clears cookies; also clear any sb-* localStorage remnants
   const signOut = useCallback(async () => {
     try {
       await bffPost<{ message: string }>('/api/auth/signout');
-    } catch (e) {
+    } catch {
       // ignore network hiccups on logout
     } finally {
       setUser(null);
+      setAccessToken(null);
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach((key) => {
+          if (key.startsWith('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {
+        // ignore
+      }
     }
   }, []);
 
   const hasRole = useCallback(
-    (rolesToCheck: string | string[]): boolean => hasRoleInternal(userRoles, rolesToCheck),
+    (rolesToCheck: string | string[]): boolean => {
+      const requiredRoles = Array.isArray(rolesToCheck) ? rolesToCheck : [rolesToCheck];
+      if (requiredRoles.length === 0) return true;
+      const normalizedUserRoles = new Set(userRoles.map((role) => role.toLowerCase()));
+      return requiredRoles.some((role) => normalizedUserRoles.has(role.toLowerCase()));
+    },
     [userRoles]
   );
 
   const updateUserBalance = useCallback((balance: number) => {
-    setUser((prev) => (prev ? { ...prev, balance: Number(balance) } : prev));
+    setUser((prevUser) => (prevUser ? { ...prevUser, balance: Number(balance) } : prevUser));
   }, []);
 
   const deductPoints = useCallback(
     async (amount: number): Promise<void> => {
-      if (amount < 0) throw new Error('Amount to deduct must be non-negative.');
+      if (amount < 0) {
+        throw new Error('Amount to deduct must be non-negative.');
+      }
       if (amount === 0) return;
       if (!user) throw new Error('User not authenticated');
       if (user.balance < amount) throw new Error('Insufficient points.');
 
-      const result = await deductBalance(amount); // cookie-auth API
+      const result = await deductBalance(amount); // your API uses cookie auth now
       if (!result || typeof result.balance === 'undefined') {
         throw new Error('Unexpected response while deducting points.');
       }
@@ -178,30 +417,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     },
     [user, updateUserBalance]
   );
-
-  const refreshProfile = useCallback(async (): Promise<User | null> => {
-    try {
-      const data = await bffGet<{ user: User | null }>('/api/auth/session');
-      if (data.user) {
-        const normalized: User = {
-          id: data.user.id,
-          email: data.user.email,
-          roles: data.user.roles && data.user.roles.length
-            ? data.user.roles
-            : [DEFAULT_ROLE],
-          metadata: data.user.metadata ?? null,
-          balance: Number(data.user.balance ?? 100),
-        };
-        setUser(normalized);
-        return normalized;
-      }
-      setUser(null);
-      return null;
-    } catch (e) {
-      setUser(null);
-      throw e instanceof Error ? e : new Error('Could not refresh profile.');
-    }
-  }, []);
 
   const sendPasswordResetEmail = useCallback(async (email: string): Promise<void> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -212,12 +427,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  const refreshProfile = useCallback(async (): Promise<User | null> => {
+    try {
+      const data = await bffGet<{ user: User | null }>('/api/auth/session');
+      if (data?.user) {
+        const normalized: User = {
+          id: data.user.id,
+          email: data.user.email || 'No email found',
+          roles: Array.isArray(data.user.roles) && data.user.roles.length
+            ? data.user.roles
+            : [DEFAULT_ROLE],
+          balance: Number((data.user as any).balance ?? 100),
+          metadata: (data.user as any).metadata ?? null,
+        };
+        setUser(normalized);
+        setAccessToken(null);
+        return normalized;
+      }
+      setUser(null);
+      setAccessToken(null);
+      return null;
+    } catch (error) {
+      setUser(null);
+      setAccessToken(null);
+      throw error instanceof Error ? error : new Error('Could not refresh profile.');
+    }
+  }, []);
+
   const resendConfirmationEmail = useCallback(async (email: string): Promise<void> => {
-    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
     if (error) {
       throw new Error(error.message || 'Could not resend confirmation email.');
     }
   }, []);
+
+  const getAccessToken = useCallback(() => null, []); // always null in cookie mode
 
   return (
     <AuthContext.Provider
@@ -235,6 +482,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         resendConfirmationEmail,
         hasRole,
         userRoles,
+        accessToken, // will be null
+        getAccessToken, // returns null
       }}
     >
       {children}
