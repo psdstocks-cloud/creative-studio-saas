@@ -18,12 +18,16 @@ export const generateCsrfToken = (): string => {
 
 /**
  * Create XSRF-TOKEN cookie options (non-HttpOnly so JavaScript can read it)
+ * 
+ * FIXED: Uses SameSite=Lax in development, SameSite=None in production
+ * Same fix as auth cookies - SameSite=None requires HTTPS
  */
 export const getCsrfCookieOptions = (isDevelopment = false): any => {
   return {
     httpOnly: false, // Must be readable by JavaScript
     secure: !isDevelopment,
-    sameSite: 'none',
+    // FIX: Use 'lax' in development (works with HTTP), 'none' in production (for cross-origin)
+    sameSite: isDevelopment ? 'lax' : 'none',
     maxAge: 259200, // 3 days - same as session
     path: '/',
   };

@@ -16,9 +16,20 @@ interface EnvBindings {
   NODE_ENV?: string;
 }
 
-const isDevelopment = (env: EnvBindings) => {
-  const nodeEnv = env.NODE_ENV || 'development';
-  return nodeEnv !== 'production';
+/**
+ * Detect if we're in development mode
+ * Uses NODE_ENV first, but falls back to checking request URL scheme
+ * (HTTPS = production, HTTP = development)
+ */
+const isDevelopment = (env: EnvBindings, request: Request): boolean => {
+  // First check NODE_ENV
+  const nodeEnv = env.NODE_ENV;
+  if (nodeEnv === 'production') return false;
+  if (nodeEnv === 'development') return true;
+  
+  // Fallback: Check if request is HTTPS (production) or HTTP (development)
+  const url = new URL(request.url);
+  return url.protocol !== 'https:';
 };
 
 export const onRequest = async ({ request, env }: { request: Request; env: EnvBindings }) => {
@@ -135,7 +146,7 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     }
 
     // Set cookies
-    const devMode = isDevelopment(env);
+    const devMode = isDevelopment(env, request);
     const csrfToken = generateCsrfToken();
 
     const headers = new Headers();

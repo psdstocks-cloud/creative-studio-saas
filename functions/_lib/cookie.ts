@@ -78,8 +78,8 @@ export const serializeCookie = (
     parts.push(`Domain=${options.domain}`);
   }
 
-  // Secure flag
-  if (options.secure !== false) {
+  // Secure flag - only add if explicitly true or not set to false
+  if (options.secure === true) {
     parts.push('Secure');
   }
 
@@ -99,15 +99,22 @@ export const serializeCookie = (
 
 /**
  * Create secure cookie options for authentication tokens
- * Uses SameSite=None for cross-origin support (required for split deployments)
+ * 
+ * FIXED: Uses different SameSite values for development vs production
+ * - Development: SameSite=Lax (works with HTTP, doesn't require Secure flag)
+ * - Production: SameSite=None (allows cross-origin, requires HTTPS and Secure flag)
+ * 
+ * Why this matters:
+ * - SameSite=None REQUIRES Secure=true, which requires HTTPS
+ * - In development (HTTP), browsers reject cookies with SameSite=None + Secure=false
+ * - This was causing cookies to be rejected on page reload, logging users out
  */
 export const getAuthCookieOptions = (isDevelopment = false): CookieOptions => {
-  const isSecure = !isDevelopment;
-
   return {
     httpOnly: true,
-    secure: isSecure,
-    sameSite: 'none', // Must be 'none' for cross-origin cookies
+    secure: !isDevelopment, // Secure=true in production (HTTPS), false in development (HTTP)
+    // FIX: Use 'lax' in development (works with HTTP), 'none' in production (for cross-origin)
+    sameSite: isDevelopment ? 'lax' : 'none',
     maxAge: 259200, // 3 days in seconds
     path: '/',
   };
