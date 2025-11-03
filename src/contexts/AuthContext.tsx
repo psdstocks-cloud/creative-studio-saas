@@ -44,7 +44,24 @@ async function bffGet<T>(url: string): Promise<T> {
   const absoluteUrl = resolveApiUrl(url);
   try {
     console.log('[BFF] GET request:', { url, absoluteUrl, hasCredentials: true });
-    const res = await fetch(absoluteUrl, { credentials: 'include' });
+    
+    // Create a fetch request with credentials
+    const fetchOptions: RequestInit = {
+      credentials: 'include',
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    };
+    
+    // Log fetch options for debugging
+    console.log('[BFF] Fetch options:', {
+      credentials: fetchOptions.credentials,
+      method: fetchOptions.method,
+      headers: fetchOptions.headers,
+    });
+    
+    const res = await fetch(absoluteUrl, fetchOptions);
     console.log('[BFF] Response:', { status: res.status, statusText: res.statusText, url: absoluteUrl });
     
     if (!res.ok) {
