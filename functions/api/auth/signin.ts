@@ -149,9 +149,22 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     const devMode = isDevelopment(env, request);
     const csrfToken = generateCsrfToken();
 
+    const authCookie = serializeAuthCookie('sb-access-token', access_token, devMode) + '; HttpOnly';
+    const csrfCookieValue = serializeCsrfCookie(csrfToken, devMode);
+
+    console.log('[SIGNIN] Setting cookies:', {
+      devMode,
+      authCookieLength: authCookie.length,
+      csrfCookieLength: csrfCookieValue.length,
+      sameSite: devMode ? 'Lax' : 'None',
+      secure: !devMode,
+    });
+
     const headers = new Headers();
-    headers.append('Set-Cookie', serializeAuthCookie('sb-access-token', access_token, devMode) + '; HttpOnly');
-    headers.append('Set-Cookie', serializeCsrfCookie(csrfToken, devMode));
+    headers.append('Set-Cookie', authCookie);
+    headers.append('Set-Cookie', csrfCookieValue);
+
+    console.log('[SIGNIN] Sign in successful:', user.id, user.email);
 
     return jsonResponse(
       request,

@@ -13,11 +13,26 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
   }
 
   try {
+    // Debug: Log cookie header (without sensitive data)
+    const cookieHeader = request.headers.get('cookie');
+    const hasCookieHeader = !!cookieHeader;
+    const cookieCount = cookieHeader ? cookieHeader.split(';').length : 0;
+    
+    console.log('[SESSION] Request received:', {
+      url: request.url,
+      hasCookieHeader,
+      cookieCount,
+      userAgent: request.headers.get('user-agent')?.substring(0, 50),
+    });
+
     const accessToken = extractAccessToken(request);
 
     if (!accessToken) {
+      console.log('[SESSION] No access token found in request');
       return jsonResponse(request, 200, { user: null });
     }
+
+    console.log('[SESSION] Access token found, length:', accessToken.length);
 
     // Verify the token with Supabase
     const supabase = getServiceSupabaseClient(env);
@@ -36,6 +51,7 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     });
 
     if (!response.ok) {
+      console.log('[SESSION] Supabase auth verification failed:', response.status);
       return jsonResponse(request, 200, { user: null });
     }
 
@@ -43,8 +59,11 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     const user = payload?.user;
 
     if (!user) {
+      console.log('[SESSION] No user in Supabase response');
       return jsonResponse(request, 200, { user: null });
     }
+
+    console.log('[SESSION] User found:', user.id, user.email);
 
     // Fetch user balance from profiles
     let balance = 100;
@@ -84,7 +103,9 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
       },
     });
   } catch (error: any) {
-    console.error('Session error:', error);
+    console.error('[SESSION] Error:', error?.message || error, {
+      stack: error?.stack?.substring(0, 200),
+    });
     return jsonResponse(request, 200, { user: null });
   }
 };
