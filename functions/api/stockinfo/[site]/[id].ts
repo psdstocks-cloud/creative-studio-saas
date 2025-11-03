@@ -63,18 +63,7 @@ export const onRequest = async (
 
     const data = await response.json();
 
-    // Copy response headers (excluding CORS which we handle)
-    const headers = new Headers();
-    response.headers.forEach((value, key) => {
-      const lowerKey = key.toLowerCase();
-      if (
-        !['content-length', 'content-encoding', 'transfer-encoding'].includes(lowerKey) &&
-        !lowerKey.startsWith('access-control-')
-      ) {
-        headers.set(key, value);
-      }
-    });
-
+    // Return JSON response (jsonResponse will handle Content-Type)
     return jsonResponse(request, response.status, data);
   } catch (error: any) {
     console.error('Stockinfo proxy error:', error);
