@@ -4,6 +4,7 @@ const ALLOWED_ORIGINS = [
   'https://creative-studio-saas.pages.dev',
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost:3001', // Vite dev server default port
 ];
 
 const getValidOrigin = (request: Request): string => {
