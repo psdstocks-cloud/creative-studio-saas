@@ -46,7 +46,12 @@ export const jsonResponse = (request: Request, status: number, body: unknown, cu
   const headers = buildCorsHeaders(origin);
   if (customHeaders) {
     customHeaders.forEach((value, key) => {
-      headers.set(key, value);
+      // Set-Cookie headers must use append to allow multiple cookies
+      if (key.toLowerCase() === 'set-cookie') {
+        headers.append(key, value);
+      } else {
+        headers.set(key, value);
+      }
     });
   }
   headers.set('Content-Type', 'application/json');
