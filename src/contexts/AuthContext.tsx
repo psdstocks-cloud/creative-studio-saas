@@ -15,10 +15,34 @@ import { deductBalance } from '../services/profileService';
 import { setAuthTokenGetter } from '../services/api';
 
 /**
+ * Resolve the absolute URL for API requests
+ */
+function resolveApiUrl(path: string): string {
+  // If path is already absolute, return it
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  
+  // Get the API base URL from environment
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+  
+  // If VITE_API_BASE_URL is set, use it to construct absolute URL
+  if (apiBaseUrl) {
+    const base = apiBaseUrl.replace(/\/$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${normalizedPath}`;
+  }
+  
+  // Fallback to relative URL (for same-origin requests)
+  return path;
+}
+
+/**
  * Small BFF helpers that ALWAYS include cookies (HttpOnly).
  */
 async function bffGet<T>(url: string): Promise<T> {
-  const res = await fetch(url, { credentials: 'include' });
+  const absoluteUrl = resolveApiUrl(url);
+  const res = await fetch(absoluteUrl, { credentials: 'include' });
   if (!res.ok) {
     throw new Error(`GET ${url} failed: ${res.status}`);
   }
@@ -26,7 +50,8 @@ async function bffGet<T>(url: string): Promise<T> {
 }
 
 async function bffPost<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const absoluteUrl = resolveApiUrl(url);
+  const res = await fetch(absoluteUrl, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
