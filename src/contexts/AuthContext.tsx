@@ -43,7 +43,10 @@ function resolveApiUrl(path: string): string {
 async function bffGet<T>(url: string): Promise<T> {
   const absoluteUrl = resolveApiUrl(url);
   try {
+    console.log('[BFF] GET request:', { url, absoluteUrl, hasCredentials: true });
     const res = await fetch(absoluteUrl, { credentials: 'include' });
+    console.log('[BFF] Response:', { status: res.status, statusText: res.statusText, url: absoluteUrl });
+    
     if (!res.ok) {
       // Try to parse error message from response
       try {
@@ -54,8 +57,13 @@ async function bffGet<T>(url: string): Promise<T> {
       }
     }
     try {
-      return await res.json() as Promise<T>;
+      const data = await res.json() as T;
+      if (url.includes('/api/auth/session')) {
+        console.log('[BFF] Session response parsed:', { hasUser: !!(data as any)?.user });
+      }
+      return data;
     } catch (jsonError) {
+      console.error('[BFF] JSON parse error:', jsonError);
       // If JSON parsing fails, return null for session endpoint
       if (url.includes('/api/auth/session')) {
         return { user: null } as T;
@@ -63,6 +71,7 @@ async function bffGet<T>(url: string): Promise<T> {
       throw new Error(`Invalid JSON response from ${url}`);
     }
   } catch (error) {
+    console.error('[BFF] Request failed:', error);
     // If fetch itself fails (network error), handle gracefully
     if (url.includes('/api/auth/session')) {
       // For session endpoint, return null user instead of throwing
@@ -327,8 +336,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     async function initializeAuth() {
       try {
+        console.log('[AUTH] Initializing auth on page load...');
+        const apiUrl = resolveApiUrl('/api/auth/session');
+        console.log('[AUTH] Calling session endpoint:', apiUrl);
+        
         const data = await bffGet<{ user: User | null }>('/api/auth/session');
         if (!mounted) return;
+
+        console.log('[AUTH] Session response:', { hasUser: !!data?.user, userId: data?.user?.id });
 
         if (data?.user) {
           const normalized: User = {
@@ -340,17 +355,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             balance: Number((data.user as any).balance ?? 100),
             metadata: (data.user as any).metadata ?? null,
           };
+          console.log('[AUTH] User authenticated:', normalized.email);
           setUser(normalized);
           setAccessToken(null); // cookie-auth only
         } else {
+          console.log('[AUTH] No user in session, user is null');
           setUser(null);
           setAccessToken(null);
         }
-      } catch {
+      } catch (error) {
+        console.error('[AUTH] Session check failed:', error);
         setUser(null);
         setAccessToken(null);
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted) {
+          console.log('[AUTH] Auth initialization complete, isLoading = false');
+          setIsLoading(false);
+        }
       }
     }
 
