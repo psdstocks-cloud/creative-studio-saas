@@ -126,23 +126,43 @@ const parseSupabaseUser = (payload: any): User | null => {
 };
 
 const parseCookieHeader = (cookieHeader: string | null) => {
-  if (!cookieHeader) {
+  if (!cookieHeader || typeof cookieHeader !== 'string') {
     return {} as Record<string, string>;
   }
 
-  return cookieHeader.split(';').reduce<Record<string, string>>((acc, part) => {
-    const [rawName, ...rawValue] = part.split('=');
-    if (!rawName) {
+  try {
+    return cookieHeader.split(';').reduce<Record<string, string>>((acc, part) => {
+      try {
+        if (!part || typeof part !== 'string') {
+          return acc;
+        }
+        const [rawName, ...rawValue] = part.split('=');
+        if (!rawName) {
+          return acc;
+        }
+        const name = rawName.trim();
+        if (!name) {
+          return acc;
+        }
+        const value = rawValue.join('=').trim();
+        if (value) {
+          try {
+            // Try to decode - cookies should be URL encoded, but handle plain text too
+            acc[name] = decodeURIComponent(value);
+          } catch {
+            // If decoding fails, use the raw value (might already be decoded)
+            acc[name] = value;
+          }
+        }
+      } catch {
+        // Skip this cookie part if parsing fails
+      }
       return acc;
-    }
-    const name = rawName.trim();
-    if (!name) {
-      return acc;
-    }
-    const value = rawValue.join('=');
-    acc[name] = decodeURIComponent(value ?? '');
-    return acc;
-  }, {});
+    }, {});
+  } catch {
+    // If parsing completely fails, return empty object
+    return {} as Record<string, string>;
+  }
 };
 
 const SUPABASE_ACCESS_COOKIE_PATTERNS = [
@@ -513,38 +533,67 @@ export const getServiceSupabaseClient = (
 };
 
 export const extractAccessToken = (request: Request): string | null => {
-  // Priority 1: Check cookies first (primary authentication method)
-  const cookieHeader = request.headers.get('cookie');
-  const cookies = parseCookieHeader(cookieHeader);
+  try {
+    // Priority 1: Check cookies first (primary authentication method)
+    const cookieHeader = request.headers.get('cookie');
+    
+    if (cookieHeader) {
+      try {
+        const cookies = parseCookieHeader(cookieHeader);
 
-  for (const [name, value] of Object.entries(cookies)) {
-    const normalizedName = name.trim().toLowerCase();
-    if (!normalizedName) {
-      continue;
-    }
-    if (
-      normalizedName === 'sb-access-token' ||
-      normalizedName === 'sb-auth-token' ||
-      normalizedName === 'supabase-auth-token' ||
-      normalizedName === 'sb:token'
-    ) {
-      return value;
+        for (const [name, value] of Object.entries(cookies)) {
+          if (!name || !value) {
+            continue;
+          }
+          try {
+            const normalizedName = name.trim().toLowerCase();
+            if (!normalizedName || !value) {
+              continue;
+            }
+            if (
+              normalizedName === 'sb-access-token' ||
+              normalizedName === 'sb-auth-token' ||
+              normalizedName === 'supabase-auth-token' ||
+              normalizedName === 'sb:token'
+            ) {
+              const trimmed = value.trim();
+              // Basic validation - token should not be empty
+              if (trimmed && trimmed.length > 0) {
+                return trimmed;
+              }
+            }
+
+            if (SUPABASE_ACCESS_COOKIE_PATTERNS.some((pattern) => pattern.test(normalizedName))) {
+              const trimmed = value.trim();
+              if (trimmed && trimmed.length > 0) {
+                return trimmed;
+              }
+            }
+          } catch {
+            // Skip this cookie if parsing fails
+            continue;
+          }
+        }
+      } catch {
+        // If cookie parsing fails completely, continue to check Authorization header
+      }
     }
 
-    if (SUPABASE_ACCESS_COOKIE_PATTERNS.some((pattern) => pattern.test(normalizedName))) {
-      return value;
+    // Priority 2: Check Authorization header (fallback for API clients)
+    const authHeader = request.headers.get('authorization');
+
+    if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+      const token = authHeader.slice(7).trim();
+      if (token && token.length > 0) {
+        return token;
+      }
     }
+
+    return null;
+  } catch {
+    // If anything fails, return null (unauthenticated)
+    return null;
   }
-
-  // Priority 2: Check Authorization header (fallback for API clients)
-  const authHeader = request.headers.get('authorization');
-
-  if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
-    const token = authHeader.slice(7).trim();
-    return token;
-  }
-
-  return null;
 };
 
 export const requireUser = async (request: Request, env: SupabaseEnv) => {
