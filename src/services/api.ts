@@ -228,6 +228,7 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
   const upperMethod = method?.toString().toUpperCase() ?? 'GET';
 
   // NEW: If auth is explicitly requested, ensure token is added
+  // Note: We use cookie-based auth, so token may be null - cookies are sent via withCredentials
   if (auth && getAuthTokenFn) {
     const token = getAuthTokenFn();
     if (token) {
@@ -235,9 +236,9 @@ export const apiFetch = async (endpoint: string, options: ApiFetchOptions = {}) 
         ...config.headers,
         'Authorization': `Bearer ${token}`,
       };
-    } else {
-      console.warn('⚠️ Authentication requested but no token available');
     }
+    // Don't warn if token is null - we use cookie-based auth (HttpOnly cookies)
+    // Cookies are automatically sent via withCredentials: true
   }
 
   if (body) {
