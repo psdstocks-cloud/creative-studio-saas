@@ -1,4 +1,4 @@
-import { handleOptions, jsonResponse, requireCsrf } from '../../_lib/http';
+import { handleOptions, jsonResponse } from '../../_lib/http';
 import { serializeCsrfCookie, generateCsrfToken } from '../../_lib/csrf';
 import { serializeAuthCookie } from '../../_lib/cookie';
 
@@ -30,11 +30,7 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     return jsonResponse(request, 405, { message: 'Method Not Allowed' });
   }
 
-  // Verify CSRF token
-  const csrfCheck = requireCsrf(request);
-  if (csrfCheck !== true) {
-    return csrfCheck;
-  }
+  // Note: No CSRF check here - signin is the entry point, we'll set CSRF cookie after auth
 
   try {
     let body: any;
