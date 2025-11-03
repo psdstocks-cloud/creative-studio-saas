@@ -18,21 +18,38 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     const hasCookieHeader = !!cookieHeader;
     const cookieCount = cookieHeader ? cookieHeader.split(';').length : 0;
     
+    // Parse and log cookie names (not values for security)
+    const cookieNames: string[] = [];
+    if (cookieHeader) {
+      cookieHeader.split(';').forEach((part) => {
+        const [name] = part.split('=');
+        if (name && name.trim()) {
+          cookieNames.push(name.trim().toLowerCase());
+        }
+      });
+    }
+    
     console.log('[SESSION] Request received:', {
       url: request.url,
       hasCookieHeader,
       cookieCount,
+      cookieNames: cookieNames.length > 0 ? cookieNames : 'none',
+      hasSbAccessToken: cookieNames.includes('sb-access-token'),
       userAgent: request.headers.get('user-agent')?.substring(0, 50),
     });
 
     const accessToken = extractAccessToken(request);
 
     if (!accessToken) {
-      console.log('[SESSION] No access token found in request');
+      console.log('[SESSION] No access token found in request', {
+        cookieHeaderPresent: hasCookieHeader,
+        cookieNames,
+        allCookies: cookieHeader ? cookieHeader.split(';').map(c => c.split('=')[0]?.trim()).filter(Boolean) : [],
+      });
       return jsonResponse(request, 200, { user: null });
     }
 
-    console.log('[SESSION] Access token found, length:', accessToken.length);
+    console.log('[SESSION] Access token found, length:', accessToken.length, 'first 10 chars:', accessToken.substring(0, 10));
 
     // Verify the token with Supabase
     const supabase = getServiceSupabaseClient(env);
