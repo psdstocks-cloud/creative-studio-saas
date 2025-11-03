@@ -17,8 +17,16 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 export const onRequest = async ({ request, next }: { request: Request; next: () => Promise<Response> }) => {
   const url = new URL(request.url);
+  const accept = request.headers.get('accept') || '';
+  
+  // Identify request types
+  const isApi = url.pathname.startsWith('/api');
+  const isAsset =
+    url.pathname.startsWith('/assets') ||
+    /\.(js|css|png|jpe?g|webp|svg|ico|map|txt|json|xml|webmanifest)$/i.test(url.pathname);
+  const isHtmlRequest = accept.includes('text/html');
 
-  // Process the request first
+  // Process the request
   const response = await next();
 
   // Apply security headers to all responses
@@ -26,6 +34,35 @@ export const onRequest = async ({ request, next }: { request: Request; next: () 
 
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     headers.set(key, value);
+  }
+
+  // SPA Routing Fallback: If _redirects didn't catch it, serve index.html for 404 HTML requests
+  // This is a backup in case Cloudflare Pages _redirects file isn't working
+  if (!isApi && !isAsset && response.status === 404 && isHtmlRequest) {
+    try {
+      // Try to fetch index.html as a fallback
+      const indexUrl = new URL('/index.html', url);
+      const indexRequest = new Request(indexUrl.toString(), request);
+      const indexResponse = await fetch(indexRequest);
+      
+      if (indexResponse.ok) {
+        const indexHeaders = new Headers(indexResponse.headers);
+        
+        // Apply security headers to the index.html response
+        for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+          indexHeaders.set(key, value);
+        }
+        
+        return new Response(indexResponse.body, {
+          status: 200,
+          statusText: 'OK',
+          headers: indexHeaders,
+        });
+      }
+    } catch (error) {
+      // If fetching index.html fails, fall through to original 404 response
+      console.error('Middleware: Failed to fetch index.html for SPA routing:', error);
+    }
   }
 
   return new Response(response.body, {
