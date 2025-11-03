@@ -14,9 +14,15 @@ export default defineConfig(({ mode }) => {
     root: path.resolve(__dirname, 'src'),
     publicDir: path.resolve(__dirname, 'public'),
     envDir: path.resolve(__dirname, '.'), // Let Vite look for .env files in root
+    
+    // CRITICAL: Set base path to ensure assets load correctly from any route
+    base: '/',
+    
     server: {
       port: 3001,
       host: 'localhost',
+      // Enable historyApiFallback for proper SPA routing in development
+      historyApiFallback: true,
       proxy: {
         '/api': {
           target: devProxyTarget,
@@ -36,6 +42,14 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: path.resolve(__dirname, 'dist'),
       emptyOutDir: true,
+      // Ensure assets are placed in a consistent location
+      assetsDir: 'assets',
+      // Better rollup configuration for asset loading
+      rollupOptions: {
+        output: {
+          manualChunks: undefined,
+        },
+      },
     },
   };
 });

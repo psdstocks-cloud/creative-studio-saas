@@ -18,23 +18,69 @@ const SECURITY_HEADERS: Record<string, string> = {
 export const onRequest = async ({ request, next }: { request: Request; next: () => Promise<Response> }) => {
   const url = new URL(request.url);
 
-  const initialResponse = await next();
-
   const accept = request.headers.get('accept') || '';
   const isApi = url.pathname.startsWith('/api');
   const isAsset =
     url.pathname.startsWith('/assets') ||
     /\.(js|css|png|jpe?g|webp|svg|ico|map|txt|json|xml|webmanifest)$/i.test(url.pathname);
-
-  let finalResponse = initialResponse;
-
-  if (!isApi && !isAsset && initialResponse.status === 404 && accept.includes('text/html')) {
-    const indexRequest = new Request(new URL('/index.html', url), request);
-    const indexResponse = await fetch(indexRequest);
-    finalResponse = new Response(indexResponse.body, {
-      status: 200,
-      headers: indexResponse.headers,
+  
+  // For API and asset requests, pass through directly
+  if (isApi || isAsset) {
+    const response = await next();
+    const headers = new Headers(response.headers);
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      headers.set(key, value);
+    }
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
     });
+  }
+
+  // For HTML requests (SPA routes), always serve index.html
+  if (accept.includes('text/html')) {
+    try {
+      const indexRequest = new Request(new URL('/index.html', url), request);
+      const indexResponse = await fetch(indexRequest);
+      
+      // If index.html exists, serve it (even if originally 404)
+      if (indexResponse.ok) {
+        const headers = new Headers(indexResponse.headers);
+        for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+          headers.set(key, value);
+        }
+        return new Response(indexResponse.body, {
+          status: 200,
+          statusText: 'OK',
+          headers,
+        });
+      }
+    } catch (error) {
+      // If fetching index.html fails, try the original request
+      console.error('Failed to fetch index.html:', error);
+    }
+  }
+
+  // Fallback: process the original request
+  const initialResponse = await next();
+  
+  // If it's a 404 HTML request, try to serve index.html one more time
+  let finalResponse = initialResponse;
+  if (!isApi && !isAsset && initialResponse.status === 404 && accept.includes('text/html')) {
+    try {
+      const indexRequest = new Request(new URL('/index.html', url), request);
+      const indexResponse = await fetch(indexRequest);
+      if (indexResponse.ok) {
+        finalResponse = new Response(indexResponse.body, {
+          status: 200,
+          headers: indexResponse.headers,
+        });
+      }
+    } catch (error) {
+      // Use original response if index.html fetch fails
+      console.error('Failed to fetch index.html for 404:', error);
+    }
   }
 
   const headers = new Headers(finalResponse.headers);
