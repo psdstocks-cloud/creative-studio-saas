@@ -340,6 +340,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const apiUrl = resolveApiUrl('/api/auth/session');
         console.log('[AUTH] Calling session endpoint:', apiUrl);
         
+        // Debug: Check if cookies are accessible (HttpOnly cookies won't be accessible via document.cookie)
+        // But we can log what cookies JS can see (non-HttpOnly ones like XSRF-TOKEN)
+        try {
+          const visibleCookies = document.cookie;
+          console.log('[AUTH] Visible cookies (non-HttpOnly):', visibleCookies || 'none');
+          if (visibleCookies.includes('XSRF-TOKEN')) {
+            console.log('[AUTH] ✅ XSRF-TOKEN cookie is present');
+          } else {
+            console.log('[AUTH] ⚠️ XSRF-TOKEN cookie NOT found (sb-access-token is HttpOnly, so not visible here)');
+          }
+        } catch (e) {
+          console.log('[AUTH] Could not check document.cookie:', e);
+        }
+        
         const data = await bffGet<{ user: User | null }>('/api/auth/session');
         if (!mounted) return;
 
