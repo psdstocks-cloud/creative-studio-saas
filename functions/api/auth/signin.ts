@@ -14,20 +14,32 @@ interface EnvBindings {
   PUBLIC_SUPABASE_ANON_KEY?: string;
   NEXT_PUBLIC_SUPABASE_ANON_KEY?: string;
   NODE_ENV?: string;
+  COOKIE_SAMESITE?: string;
 }
 
 /**
- * Detect if we're in development mode
- * Uses NODE_ENV first, but falls back to checking request URL scheme
- * (HTTPS = production, HTTP = development)
+ * Detect if we should use development-style cookies (SameSite=Lax)
+ * Priority:
+ * 1. COOKIE_SAMESITE env var (if set to 'Lax', use dev mode cookies)
+ * 2. NODE_ENV (development = Lax, production = None)
+ * 3. Protocol (HTTP = Lax, HTTPS = None)
  */
 const isDevelopment = (env: EnvBindings, request: Request): boolean => {
-  // First check NODE_ENV
+  // PRIORITY 1: Check COOKIE_SAMESITE environment variable
+  const cookieSameSite = env.COOKIE_SAMESITE?.toLowerCase();
+  if (cookieSameSite === 'lax' || cookieSameSite === 'strict') {
+    return true; // Use "dev mode" cookies (SameSite=Lax)
+  }
+  if (cookieSameSite === 'none') {
+    return false; // Use "production mode" cookies (SameSite=None)
+  }
+  
+  // PRIORITY 2: Check NODE_ENV
   const nodeEnv = env.NODE_ENV;
   if (nodeEnv === 'production') return false;
   if (nodeEnv === 'development') return true;
   
-  // Fallback: Check if request is HTTPS (production) or HTTP (development)
+  // PRIORITY 3: Fallback - Check protocol (HTTPS = production, HTTP = development)
   const url = new URL(request.url);
   return url.protocol !== 'https:';
 };
@@ -185,4 +197,3 @@ export const onRequest = async ({ request, env }: { request: Request; env: EnvBi
     return jsonResponse(request, 500, { message: 'Authentication failed' });
   }
 };
-
